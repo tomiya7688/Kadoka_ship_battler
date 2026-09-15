@@ -60,3 +60,14 @@ Assets/KadokaShipBattler/
 ## Characters
 
 `Obake_Lisense` の「かどか」「まる」も登場予定です。両キャラクターは性能を大きく優遇するのではなく、専用モーションやリアクションなど演出面を厚くする方針です。
+
+## License
+
+現在はゲーム本体と開発者ツールの分離途中のため、暫定的な混合ライセンスを採用しています。
+
+- **Developer Tool Components:** MIT License
+- **Game Components:** Kadoka Ship Battler Game License (Provisional)
+- **Developer Tools から生成したゲームや成果物:** 改変・再配布・商用販売可。Kadoka Ship Battler と構造やゲームメカニクスが近く、主にキャラクターやマップ等が異なるゲームも許可対象です。
+- **元ゲーム固有の素材・未指定コード:** 生成物の自由利用許可には含まれません。
+
+詳細は [`LICENSE.md`](LICENSE.md) を参照してください。
