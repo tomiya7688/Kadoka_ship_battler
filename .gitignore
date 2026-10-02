@@ -13,8 +13,10 @@
 .vs/
 .idea/
 .vscode/
-*.csproj
-*.sln
+/*.csproj
+/*.sln
+/Tools/**/bin/
+/Tools/**/obj/
 *.suo
 *.user
 *.userprefs
