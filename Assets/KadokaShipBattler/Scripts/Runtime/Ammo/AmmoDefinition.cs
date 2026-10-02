@@ -1,9 +1,10 @@
 using UnityEngine;
+using KadokaShipBattler.Core;
 
 namespace KadokaShipBattler.Ammo
 {
     [CreateAssetMenu(menuName = "Kadoka Ship Battler/Ammo Definition", fileName = "AmmoDefinition")]
-    public sealed class AmmoDefinition : ScriptableObject
+    public sealed class AmmoDefinition : ScriptableObject, IAmmo
     {
         [SerializeField] private string ammoId = "ammo";
         [SerializeField] private string displayName = "Ammo";
@@ -16,5 +17,12 @@ namespace KadokaShipBattler.Ammo
         public float Damage => damage;
         public float Weight => weight;
         public float AiPriority => aiPriority;
+
+        public void Initialize(string id, string name, float baseDamage)
+        {
+            ammoId = id;
+            displayName = name;
+            damage = Mathf.Max(0f, baseDamage);
+        }
     }
 }

@@ -6,9 +6,34 @@
 
 - Engine: **Unity 6.3 LTS**
 - Language: **C#**
-- Recommended baseline editor: `6000.3.15f1`
+- Editor used for local verification: `6000.3.24f1`
 
 Unity Hub からリポジトリのルートディレクトリを開いてください。
+
+## Playable prototype
+
+`Assets/KadokaShipBattler/Scenes/BattlePrototype.unity` を開いて Play を押してください。
+
+- WASD / 矢印: 移動
+- E: 近くの弾を拾う / 砲台へ装填 / 装填済みの砲台を発射
+- Space: 近くの敵コアを攻撃
+- R: 再開始
+
+黄色が弾、灰色が砲台、紫がコア、水色が操作キャラクターです。弾を4発当てて敵船体HPを0にすると中央の橋を通れます。敵船へ渡ってコアを破壊すると勝利します。船体HP0だけでは勝敗は決まりません。敵は10秒ごとに砲撃し、自船体が破壊されると橋から乗り込んでコアを攻撃します。
+
+現在は仮の図形・1対1の船員・単純な敵の定型行動による最小プロトタイプです。5人編成、操作切替、視界、Utility AIの実行は後続Issueです。
+
+## CI and verification
+
+通常のGitHub Actionsは `.NET 10` で本番の `BattleModel.cs` を直接コンパイルし、運搬、装填、誤射防止、船体HP0後の継続、コア破壊など46項目を検査します。Unityのメタデータ・シーン登録も確認します。
+
+```powershell
+dotnet run --project Tools/CI/GameplayChecks.csproj --configuration Release
+```
+
+UnityのTest RunnerでPlayModeテストを実行すると、実シーンでの弾拾い→装填→砲撃→橋の移動→コア破壊と、敵の乗り込みによる敗北も検査できます。
+
+GitHub上のUnity PlayModeジョブには別途ライセンス設定が必要です。変数 `RUN_UNITY_TESTS=true` と、GameCIに適合する `UNITY_LICENSE` または `UNITY_EMAIL` / `UNITY_PASSWORD` / `UNITY_SERIAL` をsecretsへ設定してください。ローカルUnityのライセンスはGitHubへ自動転送されません。未設定時はUnityジョブがskippedになり、通常の戦闘ロジックCIは実行されます。
 
 ## Architecture
 
