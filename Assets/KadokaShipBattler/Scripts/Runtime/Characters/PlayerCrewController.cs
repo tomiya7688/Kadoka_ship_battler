@@ -1,27 +1,47 @@
 using KadokaShipBattler.Ammo;
+using KadokaShipBattler.AI;
 using KadokaShipBattler.Core;
 using KadokaShipBattler.Ships;
 using UnityEngine;
 namespace KadokaShipBattler.Characters
 {
     [RequireComponent(typeof(CrewMember), typeof(CrewAmmoInventory))]
-    public sealed class PlayerCrewController : MonoBehaviour
+    public sealed class PlayerCrewController : MonoBehaviour, IControlledCrew
     {
         public BattlePrototype Arena { get; set; }
+        public Vector2 Facing { get; private set; } = Vector2.down;
+        public bool IsDirectlyControlled { get; private set; }
+        public TeamSide TeamSide => Crew.TeamSide;
+        public bool IsAvailable => this != null && isActiveAndEnabled && Crew.Definition != null;
         private CrewMember Crew => GetComponent<CrewMember>();
         private CrewAmmoInventory Inventory => GetComponent<CrewAmmoInventory>();
-        private bool CanAct => Arena == null || !Arena.IsFinished;
-        private void Update()
+        private bool CanAct => isActiveAndEnabled && (Arena == null || !Arena.IsFinished);
+        public void SetDirectControl(bool directControl)
         {
-            Move(new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")), Time.deltaTime);
-            if (Input.GetKeyDown(KeyCode.E)) TryInteract();
-            if (Input.GetKeyDown(KeyCode.Space)) TryAttack();
+            if (this == null) return;
+            IsDirectlyControlled = directControl;
+            var ai = GetComponent<CrewAmmoAiController>();
+            if (ai == null) return;
+            if (directControl || !IsAvailable) ai.Suspend();
+            else ai.ResumeFromCurrentState();
+        }
+        public void ApplyInput(CrewInput input, float deltaTime)
+        {
+            if (!IsDirectlyControlled || !CanAct) return;
+            Move(input.Movement, deltaTime);
+            if (input.Interact) TryInteract();
+            if (input.Attack) TryAttack();
         }
         public void Move(Vector2 input, float deltaTime)
         {
             if (!CanAct || Crew.Definition == null || deltaTime <= 0f) return;
+            Face(input);
             var next = (Vector2)transform.position + Vector2.ClampMagnitude(input, 1f) * (Crew.Definition.MoveSpeed * deltaTime);
             if (Arena == null || Arena.CanPlayerStand(next)) transform.position = new Vector3(next.x, next.y, 0f);
+        }
+        public void Face(Vector2 direction)
+        {
+            if (direction.sqrMagnitude > 0f) Facing = direction.normalized;
         }
         public bool TryInteract()
         {

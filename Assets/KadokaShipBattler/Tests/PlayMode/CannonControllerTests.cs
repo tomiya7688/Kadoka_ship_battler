@@ -90,6 +90,7 @@ namespace KadokaShipBattler.Tests
             var arena = Object.FindFirstObjectByType<BattlePrototype>();
             Assert.That(arena, Is.Not.Null);
             arena.EnemyActionsEnabled = false;
+            arena.AllyActionsEnabled = false;
             var player = arena.PlayerController;
             Assert.That(arena.CanPlayerStand(Vector2.zero), Is.False);
             Assert.That(arena.EnemyCore.TryAttack(player.GetComponent<CrewMember>()), Is.False);
@@ -122,6 +123,7 @@ namespace KadokaShipBattler.Tests
             yield return SceneManager.LoadSceneAsync("BattlePrototype");
             var arena = Object.FindFirstObjectByType<BattlePrototype>();
             arena.EnemyActionsEnabled = false;
+            arena.AllyActionsEnabled = false;
             var target = new RenderTexture(1280, 720, 24);
             var image = new Texture2D(1280, 720, TextureFormat.RGB24, false);
             var previousTarget = arena.GameCamera.targetTexture;
@@ -155,6 +157,7 @@ namespace KadokaShipBattler.Tests
         {
             yield return SceneManager.LoadSceneAsync("BattlePrototype");
             var arena = Object.FindFirstObjectByType<BattlePrototype>();
+            arena.AllyActionsEnabled = false;
             arena.PlayerShip.ApplyDamage(100);
             Assert.That(arena.IsFinished, Is.False);
             // Accelerate the actual prototype enemy Update without waiting a full minute.

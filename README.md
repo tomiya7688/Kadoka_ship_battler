@@ -17,21 +17,24 @@ Unity Hub からリポジトリのルートディレクトリを開いてくだ�
 - WASD / 矢印: 移動
 - E: 近くの弾を拾う / 砲台へ装填 / 装填済みの砲台を発射
 - Space: 近くの敵コアを攻撃
+- Tab: 次の味方へ操作対象を切り替える
 - R: 再開始
 
 黄色が弾、灰色が砲台、紫がコア、水色が操作キャラクターです。弾を4発当てて敵船体HPを0にすると中央の橋を通れます。敵船へ渡ってコアを破壊すると勝利します。船体HP0だけでは勝敗は決まりません。敵は10秒ごとに砲撃し、自船体が破壊されると橋から乗り込んでコアを攻撃します。
 
-現在は仮の図形・1対1の船員・単純な敵の定型行動による最小プロトタイプです。5人編成、操作切替、視界、Utility AIの実行は後続Issueです。
+現在は仮の図形・味方2人／敵1人による最小プロトタイプです。水色のLeaderは移動速度4・攻撃力25、緑のGunnerは移動速度2.8・攻撃力40です。白いマーカーと画面のControl欄が操作対象を示します。切替時に位置・向き・所持弾を保持し、元の船員は直ちに弾運搬AIへ戻ります。
+
+味方のAIは現在位置と現在向きから前方120度・距離6以内の弾を探し、運搬→装填→発射を実行します。弾が見えない時は向きを変えて探します。砲台の位置は既知情報です。これは操作切替を試すための定型行動で、壁による遮蔽、部屋の経路探索、5人編成、更新型Utility AIは後続Issueです。
 
 ## CI and verification
 
-通常のGitHub Actionsは `.NET 10` で本番の `BattleModel.cs` を直接コンパイルし、運搬、装填、誤射防止、船体HP0後の継続、コア破壊など46項目を検査します。Unityのメタデータ・シーン登録も確認します。
+通常のGitHub Actionsは `.NET 10` で本番の `BattleModel.cs` と `CrewControlState.cs` を直接コンパイルし、戦闘と操作切替の60項目を検査します。Unityのメタデータ・シーン登録も確認します。
 
 ```powershell
 dotnet run --project Tools/CI/GameplayChecks.csproj --configuration Release
 ```
 
-UnityのTest RunnerでPlayModeテストを実行すると、実シーンでの弾拾い→装填→砲撃→橋の移動→コア破壊と、敵の乗り込みによる敗北も検査できます。
+UnityのTest RunnerのPlayModeテストでは、実シーンの戦闘・勝敗・描画に加えて、操作切替、位置・向き・所持弾の保持、AI復帰と運搬・砲撃、船員別の移動・攻撃も検査します。
 
 GitHub上のUnity PlayModeジョブには別途ライセンス設定が必要です。変数 `RUN_UNITY_TESTS=true` と、GameCIに適合する `UNITY_LICENSE` または `UNITY_EMAIL` / `UNITY_PASSWORD` / `UNITY_SERIAL` をsecretsへ設定してください。ローカルUnityのライセンスはGitHubへ自動転送されません。未設定時はUnityジョブがskippedになり、通常の戦闘ロジックCIは実行されます。
 
