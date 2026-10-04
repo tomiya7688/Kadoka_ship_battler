@@ -1,4 +1,5 @@
 using KadokaShipBattler.Core;
+using KadokaShipBattler.AI;
 using UnityEngine;
 
 namespace KadokaShipBattler.Characters
@@ -35,6 +36,7 @@ namespace KadokaShipBattler.Characters
             if (!IsAlive)
             {
                 GetComponent<CrewAmmoInventory>()?.ReleaseAll();
+                GetComponent<VisionSensor>()?.Clear();
                 var renderer = GetComponent<SpriteRenderer>();
                 if (renderer != null) renderer.color *= 0.35f;
             }
