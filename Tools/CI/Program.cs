@@ -64,8 +64,60 @@ control.EnsureAvailableSelection();
 Check(ReferenceEquals(control.Current, ally) && ally.DirectControl, "Available ally recovers selection");
 control.ReleaseAll();
 Check(control.Current == null && control.Members.Count == 0 && !ally.DirectControl, "Teardown clears roster and control");
+foreach (var example in new[] { (2f, 2f, true), (2f, 3f, true), (3f, 3f, false) })
+{
+    var bag = new AmmoCarryState(5, 2);
+    var firstAmmo = new TestAmmo(25, example.Item1);
+    var secondAmmo = new TestAmmo(25, example.Item2);
+    Check(bag.CanPickup(firstAmmo, true) && bag.Count == 0, "Pickup preview does not mutate inventory");
+    Check(bag.TryPickup(firstAmmo, true), "First weighted pickup " + example.Item1);
+    Check(bag.CanPickup(secondAmmo, true) == example.Item3, "Combined weight preview " + example);
+    Check(bag.TryPickup(secondAmmo, true) == example.Item3, "Combined weight enforcement " + example);
+    Check(bag.Count == (example.Item3 ? 2 : 1) && bag.CurrentWeight == example.Item1 + (example.Item3 ? example.Item2 : 0), "Rejected pickup preserves contents and weight");
+}
+var heavyBag = new AmmoCarryState(5, 2);
+Check(heavyBag.TryPickup(new TestAmmo(25, 5), true), "Single item at exact weight capacity accepted");
+Check(!heavyBag.TryPickup(new TestAmmo(25, 1), true) && heavyBag.Count == 1, "Weight limit blocks addition even with count space");
+var countBag = new AmmoCarryState(100, 2);
+Check(countBag.TryPickup(new TestAmmo(25, 1), true) && countBag.TryPickup(new TestAmmo(25, 1), true), "Two items below weight limit accepted");
+Check(!countBag.TryPickup(new TestAmmo(25, 0), true) && countBag.CurrentWeight == 2, "Count limit blocks even zero-weight item");
+Check(!new AmmoCarryState(5, 0).TryPickup(ammo, true), "Zero count limit disables carrying");
+var zeroBag = new AmmoCarryState(0, 1);
+Check(!zeroBag.TryPickup(ammo, true) && zeroBag.TryPickup(new TestAmmo(25, 0), true), "Zero capacity accepts only zero weight");
+foreach (var invalidWeight in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity, -1f })
+{
+    var bag = new AmmoCarryState(5, 2);
+    Check(!bag.CanPickup(new TestAmmo(25, invalidWeight), true), "Invalid weight preview rejected: " + invalidWeight);
+    Check(!bag.TryPickup(new TestAmmo(25, invalidWeight), true) && bag.Count == 0 && bag.CurrentWeight == 0, "Invalid weight cannot change inventory: " + invalidWeight);
+    var rejected = false;
+    try { bag.ConfigureLimits(invalidWeight, 2); }
+    catch (ArgumentOutOfRangeException) { rejected = true; }
+    Check(rejected && bag.CarryCapacity == 5, "Invalid capacity cannot change limits: " + invalidWeight);
+}
+var invalidCountRejected = false;
+try { new AmmoCarryState(5, -1); } catch (ArgumentOutOfRangeException) { invalidCountRejected = true; }
+Check(invalidCountRejected, "Negative count limit rejected");
+var queuedBag = new AmmoCarryState(5, 2);
+var light = new TestAmmo(25, 2);
+var heavy = new TestAmmo(40, 3);
+Check(queuedBag.TryPickup(light, true) && queuedBag.TryPickup(heavy, true), "Queue two different rounds");
+Check(queuedBag.Items.Count == 2 && ReferenceEquals(queuedBag.CarriedAmmo, light), "First pickup remains first to load");
+var queuedCannon = new CannonState();
+var queuedTarget = new ShipBattleState(TeamSide.Enemy, 100, 30);
+Check(queuedCannon.TryLoadFrom(queuedBag, player, TeamSide.Player) && queuedBag.Count == 1 && queuedBag.CurrentWeight == 3, "Load consumes only the first item and its weight");
+Check(!queuedCannon.TryLoadFrom(queuedBag, player, TeamSide.Player) && queuedBag.Count == 1, "Loaded cannon preserves remaining inventory");
+Check(queuedCannon.FireAt(player, queuedTarget) && queuedTarget.CurrentHull == 75, "First queued round damage correct");
+Check(queuedCannon.TryLoadFrom(queuedBag, player, TeamSide.Player) && queuedBag.Count == 0 && queuedBag.CurrentWeight == 0, "Final load clears weight exactly");
+Check(queuedCannon.FireAt(player, queuedTarget) && queuedTarget.CurrentHull == 35, "Second queued round damage correct");
+Check(queuedBag.TakeAmmo() == null && queuedBag.CurrentWeight == 0, "Empty take preserves zero weight");
+var reducedBag = new AmmoCarryState(5, 2);
+reducedBag.TryPickup(light, true);
+reducedBag.TryPickup(heavy, true);
+reducedBag.ConfigureLimits(1, 1);
+Check(reducedBag.Count == 2 && reducedBag.CurrentWeight == 5 && !reducedBag.CanPickup(ammo, true), "Reduced limits preserve held items and prevent additions");
+Check(ReferenceEquals(reducedBag.TakeAmmo(), light) && ReferenceEquals(reducedBag.TakeAmmo(), heavy) && reducedBag.CurrentWeight == 0, "Over-limit inventory can still be unloaded safely");
 Console.WriteLine($"{checks} gameplay checks passed.");
-sealed record TestAmmo(float Damage) : IAmmo;
+sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew
 {
     public TeamSide TeamSide => side;
