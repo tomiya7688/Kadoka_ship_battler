@@ -49,7 +49,7 @@ namespace KadokaShipBattler.AI
             {
                 AiActionType.CarryAmmo or AiActionType.LoadCannon => crewMember.Can(CharacterCapability.CarryAmmo),
                 AiActionType.OperateCannon => crewMember.Can(CharacterCapability.OperateCannon),
-                AiActionType.Repair => crewMember.Can(CharacterCapability.Repair),
+                AiActionType.Repair => false,
                 AiActionType.DefendShip => crewMember.Can(CharacterCapability.Combat),
                 AiActionType.BoardEnemyShip => crewMember.Can(CharacterCapability.BoardEnemyShip),
                 AiActionType.SupportAlly => crewMember.Can(CharacterCapability.Support),
@@ -67,7 +67,7 @@ namespace KadokaShipBattler.AI
             {
                 AiActionType.CarryAmmo or AiActionType.LoadCannon => definition.CarrySkill,
                 AiActionType.DefendShip or AiActionType.BoardEnemyShip => definition.CombatSkill,
-                AiActionType.Repair => definition.RepairSkill,
+                AiActionType.Repair => 0f,
                 AiActionType.Idle => 0.1f,
                 _ => 1f
             };

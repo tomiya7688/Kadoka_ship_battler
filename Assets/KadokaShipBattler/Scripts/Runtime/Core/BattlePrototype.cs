@@ -11,12 +11,17 @@ namespace KadokaShipBattler.Core
     // Playable fixture; the enemy uses a simple scripted behavior, not Utility AI.
     public sealed class BattlePrototype : MonoBehaviour
     {
+        [SerializeField] private TextAsset crewSetup;
+        public BattleCrewDefinition CrewSetup { get; private set; }
         public ShipController PlayerShip { get; private set; }
         public ShipController EnemyShip { get; private set; }
         public CrewControlDirector Controls { get; private set; }
         public PlayerCrewController PlayerController => Controls.Current;
         private readonly List<PlayerCrewController> playerCrew = new();
         public IReadOnlyList<PlayerCrewController> PlayerCrew => playerCrew.AsReadOnly();
+        private readonly List<CrewMember> enemyMembers = new();
+        public IReadOnlyList<CrewMember> EnemyCrew => enemyMembers.AsReadOnly();
+        private readonly Dictionary<string, CharacterDefinition> characterDefinitions = new();
         public CannonController PlayerCannon { get; private set; }
         public ShipCore EnemyCore { get; private set; }
         public Camera GameCamera { get; private set; }
@@ -36,6 +41,17 @@ namespace KadokaShipBattler.Core
 
         private void Awake()
         {
+            if (crewSetup == null) throw new System.InvalidOperationException("Assign the crew definition JSON to BattlePrototype.");
+            CrewSetup = JsonUtility.FromJson<BattleCrewDefinition>(crewSetup.text);
+            if (CrewSetup == null) throw new System.InvalidOperationException("Invalid crew definition JSON.");
+            CrewSetup.Validate();
+            foreach (var stats in CrewSetup.characters)
+            {
+                var definition = ScriptableObject.CreateInstance<CharacterDefinition>();
+                definition.Initialize(stats);
+                definitions.Add(definition);
+                characterDefinitions.Add(stats.id, definition);
+            }
             square = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, Texture2D.whiteTexture.width,
                 Texture2D.whiteTexture.height), new Vector2(0.5f, 0.5f), Texture2D.whiteTexture.width);
             var cameraObject = new GameObject("Battle Camera");
@@ -53,10 +69,20 @@ namespace KadokaShipBattler.Core
             PlayerCannon = CreateCannon(PlayerShip, EnemyShip, new Vector2(-2, 0));
             enemyCannon = CreateCannon(EnemyShip, PlayerShip, new Vector2(2, 0));
             Controls = gameObject.AddComponent<CrewControlDirector>();
-            AddPlayerCrew(new Vector2(-5, 0), new Color(0.2f, 0.9f, 1), "Leader", 4, 5, 5, 2);
-            AddPlayerCrew(new Vector2(-4.5f, 1), new Color(0.3f, 1, 0.55f), "Gunner", 2.8f, 8, 3, 1);
+            var playerPositions = new[] { new Vector2(-5, 0), new Vector2(-4.5f, 1), new Vector2(-6, 0.5f), new Vector2(-3.5f, 1.7f), new Vector2(-6, -0.5f) };
+            var enemyPositions = new[] { new Vector2(2, 0), new Vector2(5, -1.5f), new Vector2(4, 1.7f), new Vector2(3, -1.7f), new Vector2(6, -1.4f) };
+            var playerFormation = CrewSetup.GetTeam(TeamSide.Player);
+            var enemyFormation = CrewSetup.GetTeam(TeamSide.Enemy);
+            for (var slot = 0; slot < BattleCrewDefinition.TeamSize; slot++)
+            {
+                var color = slot == 0 ? new Color(0.2f, 0.9f, 1) : Color.HSVToRGB(0.28f + slot * 0.07f, 0.65f, 1);
+                AddPlayerCrew(playerPositions[slot], color, characterDefinitions[playerFormation[slot].id]);
+                var enemy = CreateCrew(TeamSide.Enemy, enemyPositions[slot], new Color(1, 0.2f + slot * 0.1f, 0.2f), characterDefinitions[enemyFormation[slot].id]);
+                enemy.gameObject.AddComponent<CrewGuardAiController>();
+                enemyMembers.Add(enemy);
+            }
             selectionMarker = Visual("Controlled Crew Marker", new Vector2(-5, 0.4f), new Vector2(0.2f, 0.1f), Color.white, 4);
-            enemyCrew = CreateCrew(TeamSide.Enemy, new Vector2(2, 0), new Color(1, 0.3f, 0.3f));
+            enemyCrew = enemyMembers[0];
             enemyInventory = enemyCrew.GetComponent<CrewAmmoInventory>();
             ammo = ScriptableObject.CreateInstance<AmmoDefinition>();
             ammo.Initialize("prototype-ammo", "Cannonball", 25f, 2f);
@@ -72,14 +98,13 @@ namespace KadokaShipBattler.Core
                     .AddComponent<AmmoPickup>();
                 pickup.Initialize(i % 2 == 0 ? ammo : heavyAmmo);
             }
-            Debug.Log("BattlePrototype ready: two ships, eight ammo pickups, weighted carry, crew switching and enemy behavior initialized.");
+            Debug.Log("BattlePrototype ready: five player crew and five enemy crew initialized from JSON.");
         }
 
-        private void AddPlayerCrew(Vector2 position, Color color, string name, float speed, float combat, float capacity, int maxCount)
+        private void AddPlayerCrew(Vector2 position, Color color, CharacterDefinition definition)
         {
-            var member = CreateCrew(TeamSide.Player, position, color, name, speed, combat, capacity, maxCount);
-            var actor = member.gameObject.AddComponent<PlayerCrewController>();
-            actor.Arena = this;
+            var member = CreateCrew(TeamSide.Player, position, color, definition);
+            var actor = member.GetComponent<PlayerCrewController>();
             member.gameObject.AddComponent<CrewAmmoAiController>();
             playerCrew.Add(actor);
             Controls.Register(actor);
@@ -87,13 +112,20 @@ namespace KadokaShipBattler.Core
 
         private void LateUpdate()
         {
-            if (selectionMarker != null && PlayerController != null)
-                selectionMarker.transform.position = PlayerController.transform.position + Vector3.up * 0.4f;
+            if (selectionMarker == null) return;
+            selectionMarker.SetActive(PlayerController != null);
+            if (PlayerController != null) selectionMarker.transform.position = PlayerController.transform.position + Vector3.up * 0.4f;
         }
 
-        public bool CanPlayerStand(Vector2 point)
+        public bool CanPlayerStand(Vector2 point) => CanCrewStand(TeamSide.Player, point);
+        public bool CanCrewStand(TeamSide side, Vector2 point)
         {
             if (point.y < -2.3f || point.y > 2.3f || point.x < -6.8f || point.x > 6.8f) return false;
+            if (side == TeamSide.Enemy)
+            {
+                if (point.x >= 1f) return true;
+                return PlayerShip.IsHullBreached && (point.x <= -1f || Mathf.Abs(point.y) <= 0.5f);
+            }
             if (point.x <= -1f) return true;
             if (!EnemyShip.IsHullBreached) return false;
             return point.x >= 1f || Mathf.Abs(point.y) <= 0.5f;
@@ -103,6 +135,12 @@ namespace KadokaShipBattler.Core
         {
             if (Input.GetKeyDown(KeyCode.R)) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             if (IsFinished || !EnemyActionsEnabled) return;
+            if (enemyCrew == null || !enemyCrew.IsAlive)
+            {
+                enemyCrew = enemyMembers.Find(member => member.IsAlive && member.Can(CharacterCapability.Combat) && member.Can(CharacterCapability.OperateCannon) && member.Can(CharacterCapability.CarryAmmo));
+                if (enemyCrew == null) return;
+                enemyInventory = enemyCrew.GetComponent<CrewAmmoInventory>();
+            }
             if (PlayerShip.IsHullBreached)
             {
                 var position = enemyCrew.transform.position;
@@ -143,16 +181,12 @@ namespace KadokaShipBattler.Core
             cannon.Initialize(owner, target);
             return cannon;
         }
-        private CrewMember CreateCrew(TeamSide side, Vector2 position, Color color, string name = "Crew", float speed = 4,
-            float combat = 5, float capacity = 5, int maxCount = 1)
+        private CrewMember CreateCrew(TeamSide side, Vector2 position, Color color, CharacterDefinition definition)
         {
-            var definition = ScriptableObject.CreateInstance<CharacterDefinition>();
-            definition.Initialize(side + "-" + name, name, CharacterCapability.CarryAmmo |
-                CharacterCapability.OperateCannon | CharacterCapability.Combat | CharacterCapability.BoardEnemyShip, speed, combat, capacity, maxCount);
-            definitions.Add(definition);
-            var crew = Visual(side + " Crew", position, Vector2.one * 0.45f, color, 3).AddComponent<CrewMember>();
+            var crew = Visual(side + " " + definition.DisplayName, position, Vector2.one * 0.45f, color, 3).AddComponent<CrewMember>();
             crew.Initialize(definition, side);
             crew.gameObject.AddComponent<CrewAmmoInventory>();
+            crew.gameObject.AddComponent<PlayerCrewController>().Arena = this;
             return crew;
         }
         private GameObject Visual(string name, Vector2 position, Vector2 size, Color color, int order)
@@ -170,14 +204,15 @@ namespace KadokaShipBattler.Core
         private void OnGUI()
         {
             GUI.Box(new Rect(10, 10, 760, 140), "Kadoka Ship Battler - Battle Prototype");
-            GUI.Label(new Rect(25, 35, 730, 25), "WASD / Arrows: move   E: pickup / load / fire   Space: attack core   Tab: switch crew   R: restart");
+            GUI.Label(new Rect(25, 35, 730, 25), "WASD / Arrows: move   E: pickup / load / fire   Space: attack   Tab: switch crew   R: restart");
             GUI.Label(new Rect(25, 60, 610, 25), $"Player hull {PlayerShip.CurrentHull:0} / core {PlayerShip.CurrentCore:0}     Enemy hull {EnemyShip.CurrentHull:0} / core {EnemyShip.CurrentCore:0}");
             if (PlayerController != null)
             {
                 var inventory = PlayerController.GetComponent<CrewAmmoInventory>();
-                GUI.Label(new Rect(25, 85, 730, 25), $"Control: {PlayerController.GetComponent<CrewMember>().Definition.DisplayName}   Carry: {inventory.Count}/{inventory.MaxCarryCount}   Weight: {inventory.CurrentWeight:0.#}/{inventory.CarryCapacity:0.#}   Loaded: {PlayerCannon.IsLoaded}   Bridge: {(EnemyShip.IsHullBreached ? "OPEN" : "LOCKED")}");
+                var member = PlayerController.GetComponent<CrewMember>();
+                GUI.Label(new Rect(25, 85, 730, 25), $"Control: {member.Definition.DisplayName} HP {member.CurrentHp:0}/{member.Definition.MaxHp:0}   Carry: {inventory.Count}/{inventory.MaxCarryCount}   Weight: {inventory.CurrentWeight:0.#}/{inventory.CarryCapacity:0.#}   Loaded: {PlayerCannon.IsLoaded}");
             }
-            GUI.Label(new Rect(25, 110, 730, 25), "White marker: controlled crew. Yellow ammo: weight 2. Orange ammo: weight 3. E loads one at a time.");
+            GUI.Label(new Rect(25, 110, 730, 25), $"White marker: controlled crew. Yellow ammo: weight 2. Orange ammo: weight 3. Bridge: {(EnemyShip.IsHullBreached ? "OPEN" : "LOCKED")}");
             GUI.Label(new Rect(10, 160, 800, 30), IsFinished ? (PlayerWon ? "VICTORY - enemy core destroyed" : "DEFEAT - player core destroyed") :
                 "Yellow: ammo   Gray: cannon   Purple: core. Breach the hull, cross the bridge, then attack the core.");
         }

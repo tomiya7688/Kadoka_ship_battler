@@ -15,9 +15,9 @@ namespace KadokaShipBattler.Ships
         public bool TryAttack(CrewMember attacker)
         {
             if (attacker == null || OwnerShip == null || attacker.TeamSide == OwnerShip.TeamSide ||
-                !attacker.Can(CharacterCapability.Combat))
+                !attacker.Can(CharacterCapability.Combat) || attacker.Definition.AttackMode == NormalAttackMode.None)
                 return false;
-            return OwnerShip.TryDamageCore(Mathf.Max(1f, attacker.Definition.CombatSkill * 5f));
+            return OwnerShip.TryDamageCore(attacker.Definition.AttackDamage);
         }
     }
 }
