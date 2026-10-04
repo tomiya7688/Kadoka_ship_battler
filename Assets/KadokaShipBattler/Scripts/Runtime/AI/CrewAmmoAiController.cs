@@ -45,7 +45,7 @@ namespace KadokaShipBattler.AI
             foreach (var collider in Physics2D.OverlapCircleAll(ObservationOrigin, 6f))
             {
                 var pickup = collider.GetComponent<AmmoPickup>();
-                if (pickup == null || !GetComponent<CrewAmmoInventory>().CanPickup(pickup.Definition)) continue;
+                if (pickup == null || pickup.IsConsumed || !GetComponent<CrewAmmoInventory>().CanPickup(pickup.Round)) continue;
                 var offset = (Vector2)pickup.transform.position - ObservationOrigin;
                 if (offset.sqrMagnitude > 0.01f && Vector2.Dot(offset.normalized, ObservationFacing) < 0.5f) continue;
                 if (offset.sqrMagnitude >= bestDistance) continue;

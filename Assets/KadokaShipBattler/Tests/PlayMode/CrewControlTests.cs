@@ -43,7 +43,7 @@ namespace KadokaShipBattler.Tests
             previous.transform.position = new Vector3(-5, -0.5f, 0);
             previous.Face(Vector2.down);
             var inventory = previous.GetComponent<CrewAmmoInventory>();
-            var ammo = Object.FindFirstObjectByType<AmmoPickup>().Definition;
+            var ammo = arena.PlayerAmmo.Pickups[0].Definition;
             Assert.That(inventory.TryPickup(ammo), Is.True);
             var position = previous.transform.position;
             var facing = previous.Facing;
@@ -89,7 +89,7 @@ namespace KadokaShipBattler.Tests
         {
             var first = arena.PlayerCrew[0];
             var second = arena.PlayerCrew[1];
-            var pickup = Object.FindFirstObjectByType<AmmoPickup>();
+            var pickup = arena.PlayerAmmo.Pickups[0];
             second.transform.position = pickup.transform.position;
             arena.Controls.ApplyInput(new CrewInput(Vector2.zero, interact: true, switchNext: true), 0.1f);
             Assert.That(second.GetComponent<CrewAmmoInventory>().HasAmmo, Is.True);
@@ -117,7 +117,7 @@ namespace KadokaShipBattler.Tests
         public IEnumerator ReleasedCrewActuallyPicksUpAmmoOnFollowingFrames()
         {
             var previous = arena.PlayerCrew[0];
-            var pickup = Object.FindFirstObjectByType<AmmoPickup>();
+            var pickup = arena.PlayerAmmo.Pickups[0];
             previous.transform.position = pickup.transform.position;
             previous.Face(Vector2.down);
             arena.Controls.CycleNext();
@@ -133,7 +133,7 @@ namespace KadokaShipBattler.Tests
         public void ReleasedAiCarriesLoadsAndFiresThenStopsWhenSelectedAgain()
         {
             var previous = arena.PlayerCrew[0];
-            previous.transform.position = Object.FindFirstObjectByType<AmmoPickup>().transform.position;
+            previous.transform.position = arena.PlayerAmmo.Pickups[0].transform.position;
             arena.Controls.CycleNext();
             arena.AllyActionsEnabled = true;
             var ai = previous.GetComponent<CrewAmmoAiController>();
@@ -155,7 +155,7 @@ namespace KadokaShipBattler.Tests
             arena.EnemyShip.ApplyDamage(100);
             var previous = arena.PlayerCrew[0];
             var inventory = previous.GetComponent<CrewAmmoInventory>();
-            inventory.TryPickup(Object.FindFirstObjectByType<AmmoPickup>().Definition);
+            inventory.TryPickup(arena.PlayerAmmo.Pickups[0].Definition);
             previous.transform.position = new Vector3(6, 1.5f, 0);
             arena.Controls.CycleNext();
             Assert.That(previous.transform.position, Is.EqualTo(new Vector3(6, 1.5f, 0)));
