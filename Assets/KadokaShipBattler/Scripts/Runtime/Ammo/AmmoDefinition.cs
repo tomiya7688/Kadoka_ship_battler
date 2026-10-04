@@ -18,11 +18,14 @@ namespace KadokaShipBattler.Ammo
         public float Weight => weight;
         public float AiPriority => aiPriority;
 
-        public void Initialize(string id, string name, float baseDamage)
+        public void Initialize(string id, string name, float baseDamage, float baseWeight = 1f)
         {
+            if (baseWeight < 0 || float.IsNaN(baseWeight) || float.IsInfinity(baseWeight))
+                throw new System.ArgumentOutOfRangeException(nameof(baseWeight));
             ammoId = id;
             displayName = name;
             damage = Mathf.Max(0f, baseDamage);
+            weight = baseWeight;
         }
     }
 }
