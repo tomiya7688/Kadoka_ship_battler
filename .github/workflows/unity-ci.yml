@@ -41,7 +41,7 @@ jobs:
           assert Path(scene).exists()
           assert scene in Path('ProjectSettings/EditorBuildSettings.asset').read_text(encoding='utf-8-sig')
           scene_text = Path(scene).read_text(encoding='utf-8-sig')
-          for field, filename in [('crewSetup', 'PrototypeCrew.json'), ('ammoSetup', 'PrototypeAmmo.json')]:
+          for field, filename in [('crewSetup', 'PrototypeCrew.json'), ('ammoSetup', 'PrototypeAmmo.json'), ('navigationSetup', 'PrototypeNavigation.json')]:
               asset = Path('Assets/KadokaShipBattler/Data') / filename
               json.loads(asset.read_text(encoding='utf-8-sig'))
               meta_text = Path(str(asset) + '.meta').read_text(encoding='utf-8-sig')

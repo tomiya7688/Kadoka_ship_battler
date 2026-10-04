@@ -1,6 +1,7 @@
 using KadokaShipBattler.Core;
 using KadokaShipBattler.Characters;
 using System.Text.Json;
+using KadokaShipBattler.Navigation;
 
 var checks = 0;
 void Check(bool condition, string description)
@@ -308,6 +309,64 @@ memory.Replace(new[] { seen });
 memory.Clear();
 Check(memory.Observations.Count == 0 && !memory.IsCurrent(seen) && !memory.IsCurrent(null), "Disable or death clears all current observations");
 InvalidCrew(() => memory.Replace(new KadokaShipBattler.AI.VisionObservation[] { null }), "Reject null observation entry");
+var mapJson = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PrototypeNavigation.json"));
+BattleMapData Maps() => JsonSerializer.Deserialize<BattleMapData>(mapJson, new JsonSerializerOptions { IncludeFields = true });
+var maps = Maps(); maps.Validate();
+var navigation = new BattleNavigation(maps, "standard", "cargo");
+Check(navigation.Rooms.Count == 7 && navigation.Doors.Count == 10, "Two distinct three-room ships connected by one bridge");
+var detachedBounds = navigation.Rooms[0].Bounds; detachedBounds.maxX = 100;
+Check(navigation.Rooms[0].Bounds.maxX == -4, "Published room bounds cannot mutate navigation geometry");
+maps.types[0].rooms[0].maxX = 100;
+Check(navigation.Rooms[0].Bounds.maxX == -4, "Runtime map does not retain mutable input room data");
+bool Route(NavPoint from, NavPoint goal, TraversalAbilities flags, bool breached, TeamSide side = TeamSide.Player) =>
+    navigation.TryFindPath(from, goal, flags, side, breached, breached, out _);
+bool Segment(NavPoint from, NavPoint goal, TraversalAbilities flags = TraversalAbilities.None, bool breached = false) =>
+    navigation.CanTraverse(from, goal, flags, TeamSide.Player, breached, breached);
+var roomStart = new NavPoint(-5, -1.5f); var cannonGoal = new NavPoint(-2, 0);
+Check(Route(roomStart, cannonGoal, 0, false), "Walker reaches cannon through normal door");
+Check(!Segment(roomStart, new NavPoint(-3, -1.5f)), "Closed phase door prevents direct walking and tunneling");
+Check(Segment(roomStart, new NavPoint(-3, -1.5f), TraversalAbilities.Phase), "Phase crew crosses closed phase door");
+Check(!Segment(roomStart, new NavPoint(-3, -1.5f), TraversalAbilities.Fly), "Flight does not bypass a closed phase door");
+Check(!Segment(new NavPoint(-3, 1.7f), new NavPoint(-5, 1.7f)), "Walker cannot cross flight gap");
+Check(Segment(new NavPoint(-3, 1.7f), new NavPoint(-5, 1.7f), TraversalAbilities.Fly), "Flyer crosses flight gap");
+foreach (var flags in new[] { TraversalAbilities.None, TraversalAbilities.Fly, TraversalAbilities.Phase, TraversalAbilities.Fly | TraversalAbilities.Phase })
+{
+    Check(!Route(roomStart, new NavPoint(6, 1.5f), flags, false), "Intact hull blocks boarding for " + flags);
+    Check(Route(roomStart, new NavPoint(6, 1.5f), flags, true), "Breach permits shared bridge route for " + flags);
+    Check(Route(new NavPoint(6, 1.5f), cannonGoal, flags, true), "Boarded crew can return with " + flags);
+}
+Check(navigation.TryFindPath(roomStart, new NavPoint(6, 1.5f), 0, TeamSide.Player, false, true, out var boarding), "Player boarding checks enemy hull only");
+Check(boarding.Any(p => Math.Abs(p.x + 1) < 0.04f) && boarding.Any(p => Math.Abs(p.x - 1) < 0.04f), "Boarding path contains both bridge entrances");
+var cursorPoint = roomStart;
+foreach (var step in boarding)
+{
+    Check(navigation.CanTraverse(cursorPoint, step, 0, TeamSide.Player, false, true), "Every computed boarding segment is traversable");
+    cursorPoint = step;
+}
+Check(!navigation.TryFindPath(new NavPoint(2, 0), new NavPoint(-6, 1.5f), 0, TeamSide.Enemy, false, true, out _), "Enemy boarding checks player hull independently");
+Check(!Route(new NavPoint(float.NaN, 0), cannonGoal, 0, true), "Nonfinite start rejected");
+Check(!Route(roomStart, new NavPoint(0, 2), 0, true), "Off-deck target rejected");
+Check(!Segment(new NavPoint(-2, 2), new NavPoint(2, 2), 0, true), "Segment cannot tunnel across empty water");
+Check(navigation.SetDoorOpen("Player/main-door", false) && navigation.Revision == 1, "Closing door invalidates cached paths");
+Check(!Route(roomStart, cannonGoal, 0, false), "Closed normal door disconnects walker from deck");
+Check(Route(roomStart, cannonGoal, TraversalAbilities.Phase, false), "Phase shortcut remains a valid alternate path");
+Check(Route(roomStart, cannonGoal, TraversalAbilities.Fly, false), "Flyer can route via core and flight gap");
+Check(!navigation.SetDoorOpen("unknown", true) && !navigation.SetDoorOpen("Player/main-door", false), "Unknown and unchanged doors do not change revision");
+Check(navigation.SetDoorOpen("Player/main-door", true) && Route(roomStart, cannonGoal, 0, false), "Reopening door restores walker route");
+Check(navigation.TryFindPath(new NavPoint(-4.1f, 0), new NavPoint(-4.1f, 1.7f), TraversalAbilities.Fly, TeamSide.Player, false, false, out var sameEdgePath), "Flyer can route between doors on the same wall");
+cursorPoint = new NavPoint(-4.1f, 0);
+foreach (var step in sameEdgePath)
+{
+    Check(Segment(cursorPoint, step, TraversalAbilities.Fly), "Same-wall portal route stays inside room interiors");
+    cursorPoint = step;
+}
+InvalidCrew(() => { var bad = Maps(); bad.types[0].rooms[0].minX = float.NaN; bad.Validate(); }, "Reject nonfinite room bounds");
+InvalidCrew(() => { var bad = Maps(); bad.types[0].rooms[1].minX = -1; bad.Validate(); }, "Reject overlapping room interiors");
+InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].to = "missing"; bad.Validate(); }, "Reject missing connection room");
+InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].point.x = 1; bad.Validate(); }, "Reject door outside shared edge");
+InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].width = 20; bad.Validate(); }, "Reject door wider than shared edge");
+InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].requiredAbilities = (TraversalAbilities)4; bad.Validate(); }, "Reject unknown traversal flags");
+InvalidCrew(() => new BattleNavigation(Maps(), "missing", "cargo"), "Reject undefined ship type");
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew
