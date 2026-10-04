@@ -1,5 +1,6 @@
 using KadokaShipBattler.Ammo;
 using KadokaShipBattler.Characters;
+using KadokaShipBattler.Navigation;
 using UnityEngine;
 
 namespace KadokaShipBattler.AI
@@ -24,6 +25,7 @@ namespace KadokaShipBattler.AI
             VisibleAmmo = null;
             visibleObservation = null;
             CurrentAction = AiActionType.Idle;
+            GetComponent<NavigationAgent>()?.Cancel();
         }
         public void ResumeFromCurrentState()
         {
@@ -74,6 +76,7 @@ namespace KadokaShipBattler.AI
             ChooseAction();
             if (CurrentAction == AiActionType.Idle)
             {
+                GetComponent<NavigationAgent>().Cancel();
                 searchTimer -= deltaTime;
                 if (searchTimer <= 0)
                 {
@@ -83,18 +86,13 @@ namespace KadokaShipBattler.AI
                 return;
             }
             var target = CurrentAction == AiActionType.CarryAmmo ? new Vector3(visibleObservation.X, visibleObservation.Y, 0) : actor.Arena.PlayerCannon.transform.position;
-            // Fixture-specific bridge waypoints; room/door navigation remains a separate system.
-            var routeThroughBridge = target.x < -1f && transform.position.x > -1f;
-            if (routeThroughBridge)
-                target = transform.position.x > 1f && Mathf.Abs(transform.position.y) > 0.05f
-                    ? new Vector3(transform.position.x, 0, 0) : new Vector3(-1.2f, 0, 0);
             var offset = (Vector2)(target - transform.position);
-            if (offset.magnitude > (routeThroughBridge ? 0.01f : 0.45f))
+            if (offset.magnitude > 0.45f || !actor.Arena.CanCrewMove(actor.TeamSide, transform.position, target, GetComponent<CrewMember>().Definition))
             {
-                actor.Move(offset.normalized, Mathf.Min(deltaTime, offset.magnitude / Mathf.Max(0.01f, GetComponent<CrewMember>().Definition.MoveSpeed)));
+                GetComponent<NavigationAgent>().MoveTo(target, deltaTime);
                 return;
             }
-            if (routeThroughBridge) return;
+            GetComponent<NavigationAgent>().Cancel();
             interactionTimer -= deltaTime;
             if (interactionTimer > 0) return;
             if (CurrentAction == AiActionType.CarryAmmo)
