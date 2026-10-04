@@ -12,7 +12,11 @@ namespace KadokaShipBattler.Core
     public sealed class BattlePrototype : MonoBehaviour
     {
         [SerializeField] private TextAsset crewSetup;
+        [SerializeField] private TextAsset ammoSetup;
         public BattleCrewDefinition CrewSetup { get; private set; }
+        public BattleAmmoDefinition AmmoSetup { get; private set; }
+        public AmmoDeckSpawner PlayerAmmo { get; private set; }
+        public AmmoDeckSpawner EnemyAmmo { get; private set; }
         public ShipController PlayerShip { get; private set; }
         public ShipController EnemyShip { get; private set; }
         public CrewControlDirector Controls { get; private set; }
@@ -31,7 +35,6 @@ namespace KadokaShipBattler.Core
         public bool PlayerWon => EnemyShip.IsDestroyed && !PlayerShip.IsDestroyed;
         private readonly List<ScriptableObject> definitions = new();
         private Sprite square;
-        private AmmoDefinition ammo;
         private CrewMember enemyCrew;
         private CrewAmmoInventory enemyInventory;
         private CannonController enemyCannon;
@@ -45,6 +48,10 @@ namespace KadokaShipBattler.Core
             CrewSetup = JsonUtility.FromJson<BattleCrewDefinition>(crewSetup.text);
             if (CrewSetup == null) throw new System.InvalidOperationException("Invalid crew definition JSON.");
             CrewSetup.Validate();
+            if (ammoSetup == null) throw new System.InvalidOperationException("Assign the ammo deck JSON to BattlePrototype.");
+            AmmoSetup = JsonUtility.FromJson<BattleAmmoDefinition>(ammoSetup.text);
+            if (AmmoSetup == null) throw new System.InvalidOperationException("Invalid ammo deck JSON.");
+            AmmoSetup.Validate();
             foreach (var stats in CrewSetup.characters)
             {
                 var definition = ScriptableObject.CreateInstance<CharacterDefinition>();
@@ -84,21 +91,42 @@ namespace KadokaShipBattler.Core
             selectionMarker = Visual("Controlled Crew Marker", new Vector2(-5, 0.4f), new Vector2(0.2f, 0.1f), Color.white, 4);
             enemyCrew = enemyMembers[0];
             enemyInventory = enemyCrew.GetComponent<CrewAmmoInventory>();
-            ammo = ScriptableObject.CreateInstance<AmmoDefinition>();
-            ammo.Initialize("prototype-ammo", "Cannonball", 25f, 2f);
-            definitions.Add(ammo);
-            var heavyAmmo = ScriptableObject.CreateInstance<AmmoDefinition>();
-            heavyAmmo.Initialize("prototype-heavy-ammo", "Heavy Cannonball", 25f, 3f);
-            definitions.Add(heavyAmmo);
-            for (var i = 0; i < 8; i++)
+            var ammoDefinitions = new Dictionary<string, AmmoDefinition>();
+            foreach (var stats in AmmoSetup.ammo)
             {
-                var pickup = Visual("Ammo " + (i + 1), new Vector2(-5 + (i % 4) * 0.65f,
-                    -1.2f - (i / 4) * 0.65f), Vector2.one * 0.3f,
-                    i % 2 == 0 ? new Color(1, 0.8f, 0.2f) : new Color(1, 0.45f, 0.1f), 2)
-                    .AddComponent<AmmoPickup>();
-                pickup.Initialize(i % 2 == 0 ? ammo : heavyAmmo);
+                var definition = ScriptableObject.CreateInstance<AmmoDefinition>();
+                definition.Initialize(stats.id, stats.displayName, stats.damage, stats.weight, stats.hardness);
+                definitions.Add(definition);
+                ammoDefinitions.Add(stats.id, definition);
             }
-            Debug.Log("BattlePrototype ready: five player crew and five enemy crew initialized from JSON.");
+            var seed = System.Environment.TickCount;
+            PlayerAmmo = CreateAmmoSpawner(TeamSide.Player, AmmoSetup.player, ammoDefinitions, seed);
+            EnemyAmmo = CreateAmmoSpawner(TeamSide.Enemy, AmmoSetup.enemy, ammoDefinitions, seed ^ 0x57d32);
+            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON.");
+        }
+
+        private AmmoDeckSpawner CreateAmmoSpawner(TeamSide side, AmmoDeckData data,
+            Dictionary<string, AmmoDefinition> ammoDefinitions, int seed)
+        {
+            var entries = new List<AmmoDefinition>();
+            foreach (var id in data.slots) entries.Add(ammoDefinitions[id]);
+            var definition = ScriptableObject.CreateInstance<AmmoDeckDefinition>();
+            definition.Initialize(entries);
+            definitions.Add(definition);
+            var layout = AmmoSetup.GetLayout(side);
+            var points = new Vector2[layout.points.Length];
+            var center = side == TeamSide.Player ? new Vector2(-4, 0) : new Vector2(4, 0);
+            for (var index = 0; index < points.Length; index++)
+            {
+                var point = layout.points[index];
+                points[index] = center + new Vector2(side == TeamSide.Player ? point.x : -point.x, point.y);
+                if (!CanCrewStand(side, points[index])) throw new System.ArgumentException("Ammo spawn point is outside its ship deck.");
+            }
+            var item = new GameObject(side + " Ammo Deck");
+            item.transform.SetParent(transform);
+            var spawner = item.AddComponent<AmmoDeckSpawner>();
+            spawner.Initialize(definition, side, points, square, this, seed);
+            return spawner;
         }
 
         private void AddPlayerCrew(Vector2 position, Color color, CharacterDefinition definition)
@@ -156,7 +184,7 @@ namespace KadokaShipBattler.Core
             enemyTimer += Time.deltaTime;
             if (enemyTimer < 10f) return;
             enemyTimer = 0;
-            enemyInventory.TryPickup(ammo);
+            if (!enemyInventory.HasAmmo && !EnemyAmmo.TrySupply(enemyInventory)) return;
             enemyCannon.TryLoadFrom(enemyInventory);
             enemyCannon.FireAt(PlayerShip);
         }
@@ -203,7 +231,7 @@ namespace KadokaShipBattler.Core
         }
         private void OnGUI()
         {
-            GUI.Box(new Rect(10, 10, 760, 140), "Kadoka Ship Battler - Battle Prototype");
+            GUI.Box(new Rect(10, 10, 760, 165), "Kadoka Ship Battler - Battle Prototype");
             GUI.Label(new Rect(25, 35, 730, 25), "WASD / Arrows: move   E: pickup / load / fire   Space: attack   Tab: switch crew   R: restart");
             GUI.Label(new Rect(25, 60, 610, 25), $"Player hull {PlayerShip.CurrentHull:0} / core {PlayerShip.CurrentCore:0}     Enemy hull {EnemyShip.CurrentHull:0} / core {EnemyShip.CurrentCore:0}");
             if (PlayerController != null)
@@ -213,7 +241,8 @@ namespace KadokaShipBattler.Core
                 GUI.Label(new Rect(25, 85, 730, 25), $"Control: {member.Definition.DisplayName} HP {member.CurrentHp:0}/{member.Definition.MaxHp:0}   Carry: {inventory.Count}/{inventory.MaxCarryCount}   Weight: {inventory.CurrentWeight:0.#}/{inventory.CarryCapacity:0.#}   Loaded: {PlayerCannon.IsLoaded}");
             }
             GUI.Label(new Rect(25, 110, 730, 25), $"White marker: controlled crew. Yellow ammo: weight 2. Orange ammo: weight 3. Bridge: {(EnemyShip.IsHullBreached ? "OPEN" : "LOCKED")}");
-            GUI.Label(new Rect(10, 160, 800, 30), IsFinished ? (PlayerWon ? "VICTORY - enemy core destroyed" : "DEFEAT - player core destroyed") :
+            GUI.Label(new Rect(25, 135, 730, 25), $"Deck waiting: Player {PlayerAmmo.Deck.WaitingCount}/25   Enemy {EnemyAmmo.Deck.WaitingCount}/25   Ground ammo expires after 60s");
+            GUI.Label(new Rect(10, 185, 800, 30), IsFinished ? (PlayerWon ? "VICTORY - enemy core destroyed" : "DEFEAT - player core destroyed") :
                 "Yellow: ammo   Gray: cannon   Purple: core. Breach the hull, cross the bridge, then attack the core.");
         }
         private void OnDestroy()

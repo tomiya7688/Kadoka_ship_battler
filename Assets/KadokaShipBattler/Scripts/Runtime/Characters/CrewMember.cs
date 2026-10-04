@@ -34,6 +34,7 @@ namespace KadokaShipBattler.Characters
             if (!IsAlive || !Health.ApplyDamage(damage)) return false;
             if (!IsAlive)
             {
+                GetComponent<CrewAmmoInventory>()?.ReleaseAll();
                 var renderer = GetComponent<SpriteRenderer>();
                 if (renderer != null) renderer.color *= 0.35f;
             }

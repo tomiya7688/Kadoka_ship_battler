@@ -9,6 +9,14 @@ namespace KadokaShipBattler.Core
         float Weight { get; }
     }
 
+    public interface ITrackedAmmo : IAmmo
+    {
+        bool CanCarry { get; }
+        bool TryCarry();
+        bool TryLoad();
+        bool ReturnToDeck();
+    }
+
     public sealed class AmmoCarryState
     {
         private readonly List<IAmmo> items = new();
@@ -39,6 +47,7 @@ namespace KadokaShipBattler.Core
         public bool CanPickup(IAmmo ammo, bool canCarry)
         {
             return canCarry && ammo != null && Count < MaxCarryCount &&
+                (!(ammo is ITrackedAmmo tracked) || tracked.CanCarry) &&
                 IsNonNegativeFinite(ammo.Damage) && IsNonNegativeFinite(ammo.Weight) &&
                 currentWeight + ammo.Weight <= CarryCapacity;
         }
@@ -46,6 +55,7 @@ namespace KadokaShipBattler.Core
         public bool TryPickup(IAmmo ammo, bool canCarry)
         {
             if (!CanPickup(ammo, canCarry)) return false;
+            if (ammo is ITrackedAmmo tracked && !tracked.TryCarry()) return false;
             items.Add(ammo);
             acceptedWeights.Add(ammo.Weight);
             currentWeight += ammo.Weight;
@@ -65,6 +75,14 @@ namespace KadokaShipBattler.Core
 
         private static bool IsNonNegativeFinite(float value) =>
             value >= 0 && !float.IsNaN(value) && !float.IsInfinity(value);
+
+        public void Clear()
+        {
+            foreach (var item in items) if (item is ITrackedAmmo tracked) tracked.ReturnToDeck();
+            items.Clear();
+            acceptedWeights.Clear();
+            currentWeight = 0;
+        }
     }
 
     public sealed class ShipBattleState
@@ -115,6 +133,7 @@ namespace KadokaShipBattler.Core
             if (inventory == null || owner == null || owner.IsDestroyed ||
                 owner.TeamSide != carrierSide || LoadedAmmo != null || inventory.CarriedAmmo == null)
                 return false;
+            if (inventory.CarriedAmmo is ITrackedAmmo tracked && !tracked.TryLoad()) return false;
             LoadedAmmo = inventory.TakeAmmo();
             return true;
         }
@@ -125,8 +144,15 @@ namespace KadokaShipBattler.Core
                 target.IsDestroyed || ReferenceEquals(owner, target) || owner.TeamSide == target.TeamSide)
                 return false;
             target.ApplyHullDamage(LoadedAmmo.Damage);
+            if (LoadedAmmo is ITrackedAmmo tracked) tracked.ReturnToDeck();
             LoadedAmmo = null;
             return true;
+        }
+
+        public void Clear()
+        {
+            if (LoadedAmmo is ITrackedAmmo tracked) tracked.ReturnToDeck();
+            LoadedAmmo = null;
         }
     }
 }

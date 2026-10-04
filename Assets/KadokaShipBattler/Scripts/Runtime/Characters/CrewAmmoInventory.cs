@@ -21,7 +21,8 @@ namespace KadokaShipBattler.Characters
                 return state;
             }
         }
-        public AmmoDefinition CarriedAmmo => State.CarriedAmmo as AmmoDefinition;
+        public IAmmo CarriedRound => State.CarriedAmmo;
+        public AmmoDefinition CarriedAmmo => (State.CarriedAmmo is AmmoDeckRound round ? round.Definition : State.CarriedAmmo) as AmmoDefinition;
         public bool HasAmmo => State.Count > 0;
         public int Count => State.Count;
         public float CurrentWeight => State.CurrentWeight;
@@ -34,22 +35,24 @@ namespace KadokaShipBattler.Characters
             crewMember = GetComponent<CrewMember>();
         }
 
-        public bool TryPickup(AmmoDefinition ammo)
+        public bool TryPickup(IAmmo ammo)
         {
             if (crewMember == null)
                 crewMember = GetComponent<CrewMember>();
             return State.TryPickup(ammo, crewMember.Can(CharacterCapability.CarryAmmo));
         }
 
-        public bool CanPickup(AmmoDefinition ammo)
+        public bool CanPickup(IAmmo ammo)
         {
             var inventory = State;
             return inventory.CanPickup(ammo, crewMember.Can(CharacterCapability.CarryAmmo));
         }
 
-        public AmmoDefinition TakeAmmo()
+        public IAmmo TakeAmmo()
         {
-            return State.TakeAmmo() as AmmoDefinition;
+            return State.TakeAmmo();
         }
+        public void ReleaseAll() => state.Clear();
+        private void OnDestroy() => ReleaseAll();
     }
 }
