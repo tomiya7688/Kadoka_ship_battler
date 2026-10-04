@@ -264,6 +264,50 @@ deck.Close();
 Check(deck.WaitingCount == 25, "Repeated deck cleanup is safe");
 InvalidCrew(() => new KadokaShipBattler.Ammo.AmmoDeckState(new IAmmo[24], 0), "Runtime deck rejects wrong slot count");
 InvalidCrew(() => new KadokaShipBattler.Ammo.AmmoDeckState(new IAmmo[25], 0), "Runtime deck rejects null slot definitions");
+var cone = new KadokaShipBattler.AI.VisionCone(120, 6);
+Check(cone.Contains(0, 0, 0, -1, 0, -1), "Vision sees targets in front");
+Check(!cone.Contains(0, 0, 0, -1, 0, 1), "Vision excludes targets behind");
+Check(!cone.Contains(0, 0, 0, -1, 1, 0), "Vision excludes targets beside a 120-degree cone");
+Check(cone.Contains(0, 0, 0, -1, 1.7320508f, -1), "Vision includes cone boundary");
+Check(!cone.Contains(0, 0, 0, -1, 1.74f, -1), "Vision excludes targets just outside cone");
+Check(cone.Contains(0, 0, 0, -1, 0, -6), "Vision includes exact distance boundary");
+Check(!cone.Contains(0, 0, 0, -1, 0, -6.01f), "Vision excludes targets beyond distance");
+Check(cone.Contains(0, 0, 0, -1, 0, 0), "Target at the observer position is visible");
+Check(cone.Contains(10, 20, 0, -1, 10, 19), "Vision follows translated observer position");
+Check(cone.Contains(0, 0, 0, -4, 0, -1), "Vision normalizes facing direction");
+Check(!cone.Contains(0, 0, 0, 0, 0, -1), "Zero facing does not imply omnidirectional vision");
+Check(cone.Contains(0, 0, 1, 0, 1, 0) && !cone.Contains(0, 0, 1, 0, -1, 0), "Turning updates which side is visible");
+Check(new KadokaShipBattler.AI.VisionCone(360, 6).Contains(0, 0, 0, -1, 0, 1), "360-degree sensor sees behind within distance");
+Check(!new KadokaShipBattler.AI.VisionCone(360, 1).Contains(0, 0, 1, 0, 0, -2), "Full-angle sensor still enforces distance");
+foreach (var angle in new[] { 0f, -1f, 361f, float.NaN, float.PositiveInfinity })
+    InvalidCrew(() => new KadokaShipBattler.AI.VisionCone(angle, 6), "Reject invalid vision angle " + angle);
+foreach (var distance in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+    InvalidCrew(() => new KadokaShipBattler.AI.VisionCone(120, distance), "Reject invalid vision distance " + distance);
+foreach (var coordinate in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+{
+    Check(!cone.Contains(coordinate, 0, 0, -1, 0, -1), "Reject nonfinite observer coordinates " + coordinate);
+    Check(!cone.Contains(0, 0, coordinate, -1, 0, -1), "Reject nonfinite facing " + coordinate);
+    Check(!cone.Contains(0, 0, 0, -1, coordinate, -1), "Reject nonfinite target coordinates " + coordinate);
+}
+var memory = new KadokaShipBattler.AI.VisionMemory();
+var seen = new KadokaShipBattler.AI.VisionObservation(11, KadokaShipBattler.AI.ObservedTargetKind.Crew, TeamSide.Enemy, 0, -1, 80, 0, 0, 1);
+var seenAmmo = new KadokaShipBattler.AI.VisionObservation(12, KadokaShipBattler.AI.ObservedTargetKind.Ammo, TeamSide.Player, 0, -2, 0, 2, 25, 1);
+memory.Replace(new[] { seenAmmo, seen, seen });
+Check(memory.Observations.Count == 2 && memory.IsCurrent(seen) && memory.IsCurrent(seenAmmo), "Vision memory deduplicates currently observed targets");
+Check(memory.Observations[0].TargetId == 11 && memory.Observations[1].TargetId == 12, "Vision memory has deterministic target order");
+var oldList = memory.Observations;
+var updatedSeen = new KadokaShipBattler.AI.VisionObservation(11, KadokaShipBattler.AI.ObservedTargetKind.Crew, TeamSide.Enemy, 0, -0.5f, 70, 0, 0, 2);
+memory.Replace(new[] { updatedSeen });
+Check(memory.Observations.Count == 1 && memory.IsCurrent(updatedSeen) && !memory.IsCurrent(seen) && !memory.IsCurrent(seenAmmo), "New scan removes absent targets and invalidates previous snapshots");
+Check(seen.Hp == 80 && seen.Y == -1 && oldList.Count == 2, "Old observations stay immutable rather than reading live hidden state");
+memory.Remove(11);
+Check(memory.Observations.Count == 0 && !memory.IsCurrent(updatedSeen), "Blocked target can be immediately removed before next scan");
+memory.Remove(999);
+Check(memory.Observations.Count == 0, "Removing an unknown observation is safe");
+memory.Replace(new[] { seen });
+memory.Clear();
+Check(memory.Observations.Count == 0 && !memory.IsCurrent(seen) && !memory.IsCurrent(null), "Disable or death clears all current observations");
+InvalidCrew(() => memory.Replace(new KadokaShipBattler.AI.VisionObservation[] { null }), "Reject null observation entry");
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew
