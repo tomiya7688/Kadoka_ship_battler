@@ -2,6 +2,7 @@ using KadokaShipBattler.Core;
 using KadokaShipBattler.Characters;
 using System.Text.Json;
 using KadokaShipBattler.Navigation;
+using KadokaShipBattler.AI;
 
 var checks = 0;
 void Check(bool condition, string description)
@@ -367,6 +368,62 @@ InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].point.x = 1; bad.Val
 InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].width = 20; bad.Validate(); }, "Reject door wider than shared edge");
 InvalidCrew(() => { var bad = Maps(); bad.types[0].doors[0].requiredAbilities = (TraversalAbilities)4; bad.Validate(); }, "Reject unknown traversal flags");
 InvalidCrew(() => new BattleNavigation(Maps(), "missing", "cargo"), "Reject undefined ship type");
+var learned = new UtilityLearningState();
+UtilityContext Context(float combat = 5, float carrying = 5, CharacterCapability capabilities = CharacterCapability.Combat | CharacterCapability.CarryAmmo | CharacterCapability.OperateCannon,
+    bool held = false, bool loaded = false, float hp = 1, float hull = 1, float waiting = 1, bool attack = true) =>
+    new UtilityContext(capabilities, combat, carrying, hp, hull, waiting, held, loaded, attack);
+var carryCandidate = new UtilityCandidate(AiActionType.CarryAmmo, 12, distance: 1, ammoDamage: 25, ammoWeight: 2);
+var guardCandidate = new UtilityCandidate(AiActionType.DefendShip, 13, distance: 1, targetHp: 100);
+var idleCandidate = new UtilityCandidate(AiActionType.Idle);
+var choices = new[] { idleCandidate, carryCandidate, guardCandidate };
+Check(UtilityRules.Evaluate(Context(1, 9), choices, learned).Selected.Action == AiActionType.CarryAmmo, "Carry aptitude changes action selection in identical situation");
+Check(UtilityRules.Evaluate(Context(9, 1), choices, learned).Selected.Action == AiActionType.DefendShip, "Combat aptitude favors defense in identical situation");
+var beforeLearning = UtilityRules.Evaluate(Context(), choices, learned);
+Check(beforeLearning.Selected.Action == AiActionType.DefendShip, "Default leader compares defense and ammo scores");
+learned.SetWeight(AiActionType.CarryAmmo, 4); learned.SetWeight(AiActionType.DefendShip, 0.25f);
+Check(UtilityRules.Evaluate(Context(), choices, learned).Selected.Action == AiActionType.CarryAmmo, "Learned weights change decision with unchanged observations");
+learned = new UtilityLearningState();
+float Score(UtilityCandidate candidate, UtilityContext context = null) => UtilityRules.Evaluate(context ?? Context(), new[] { candidate }, learned).Scores.Single().Score;
+Check(Score(carryCandidate) > Score(new UtilityCandidate(AiActionType.CarryAmmo, distance: 5, ammoDamage: 25, ammoWeight: 2)), "Reachable path distance reduces ammo utility");
+Check(Score(carryCandidate) > Score(new UtilityCandidate(AiActionType.CarryAmmo, distance: 1, danger: 1, ammoDamage: 25, ammoWeight: 2)), "Observed danger reduces supply utility");
+Check(Score(carryCandidate) > Score(new UtilityCandidate(AiActionType.CarryAmmo, distance: 1, ammoDamage: 25, ammoWeight: 5)), "Ammo weight influences carrying utility");
+Check(Score(carryCandidate) < Score(new UtilityCandidate(AiActionType.CarryAmmo, distance: 1, ammoDamage: 100, ammoWeight: 2)), "Observed ammo damage influences utility");
+Check(Score(guardCandidate, Context(hull: 0)) > Score(guardCandidate), "Own hull breach raises defense urgency");
+Check(Score(guardCandidate, Context(hp: 0.1f)) < Score(guardCandidate), "Low own HP reduces exposed combat utility");
+Check(Score(carryCandidate, Context(waiting: 0)) < Score(carryCandidate), "Own deck state contributes to supply evaluation");
+var unavailable = new[] { idleCandidate, carryCandidate, guardCandidate, new UtilityCandidate(AiActionType.LoadCannon), new UtilityCandidate(AiActionType.OperateCannon),
+    new UtilityCandidate(AiActionType.Repair), new UtilityCandidate(AiActionType.BoardEnemyShip), new UtilityCandidate(AiActionType.SupportAlly) };
+var noCapability = UtilityRules.Evaluate(Context(capabilities: CharacterCapability.None), unavailable, learned);
+Check(noCapability.Scores.Count == 1 && noCapability.Selected.Action == AiActionType.Idle, "Missing capabilities and unimplemented actions excluded");
+Check(UtilityRules.Evaluate(Context(attack: false), choices, learned).Scores.All(s => s.Candidate.Action != AiActionType.DefendShip), "Non-attacking character cannot choose defense");
+Check(UtilityRules.Evaluate(Context(hp: 0), unavailable, learned).Scores.Count == 0, "Dead character produces no actionable scores");
+Check(UtilityRules.Evaluate(Context(held: true), unavailable, learned).Selected.Action == AiActionType.LoadCannon, "Carried ammo enables loading with default priorities");
+Check(UtilityRules.Evaluate(Context(held: true, loaded: true), unavailable, learned).Selected.Action == AiActionType.OperateCannon, "Loaded cannon enables firing and excludes redundant loading");
+var ties = new[] { new UtilityCandidate(AiActionType.CarryAmmo, 50), new UtilityCandidate(AiActionType.CarryAmmo, 10) };
+Check(UtilityRules.Evaluate(Context(), ties, learned).Selected.TargetId == 10 && UtilityRules.Evaluate(Context(), ties.Reverse(), learned).Selected.TargetId == 10, "Equal scores use deterministic action and target order");
+learned.RecordOutcome(AiActionType.CarryAmmo, 1);
+Check(learned.GetWeight(AiActionType.CarryAmmo) > 1, "Successful action raises learned preference");
+learned.RecordOutcome(AiActionType.CarryAmmo, -1);
+Check(learned.GetWeight(AiActionType.CarryAmmo) < 1.45f, "Failed action lowers learned preference");
+for (var step = 0; step < 500; step++) { learned.RecordOutcome(AiActionType.DefendShip, 1); learned.RecordOutcome(AiActionType.CarryAmmo, -1); }
+Check(learned.GetWeight(AiActionType.DefendShip) <= 4 && learned.GetWeight(AiActionType.CarryAmmo) >= 0.25f, "Repeated learning remains bounded");
+var exported = learned.Export(); var restored = new UtilityLearningState(); restored.Import(exported);
+Check(restored.GetWeight(AiActionType.DefendShip) == learned.GetWeight(AiActionType.DefendShip), "Battle result weights can be restored into a new agent");
+exported.weights[0].weight = 3;
+Check(learned.GetWeight(AiActionType.Idle) == 1, "Export does not expose mutable internal learning state");
+var rawScores = UtilityRules.Evaluate(Context(), choices, learned).Scores;
+Check(rawScores.All(s => s.Score == s.BaseScore * s.LearnedWeight * s.PolicyWeight && !float.IsNaN(s.Score)), "Debug scores retain evaluation factors");
+foreach (var bad in new[] { float.NaN, float.PositiveInfinity, -1f, 5f })
+    InvalidCrew(() => learned.SetWeight(AiActionType.CarryAmmo, bad), "Reject invalid learned weight " + bad);
+InvalidCrew(() => learned.SetWeight(AiActionType.Repair, 1), "Cannot learn unsupported repair action");
+InvalidCrew(() => learned.RecordOutcome(AiActionType.CarryAmmo, float.NaN), "Reject invalid learning reward");
+InvalidCrew(() => learned.RecordOutcome(AiActionType.CarryAmmo, 1, 2), "Reject invalid learning rate");
+InvalidCrew(() => new UtilityContext(0, 5, 5, float.NaN, 1, 1, false, false, true), "Reject nonfinite context");
+InvalidCrew(() => new UtilityCandidate(AiActionType.CarryAmmo, distance: -1), "Reject negative candidate distance");
+InvalidCrew(() => new UtilityCandidate(AiActionType.CarryAmmo, x: float.PositiveInfinity), "Reject nonfinite candidate position");
+InvalidCrew(() => UtilityRules.Evaluate(Context(), choices, learned, _ => float.NaN), "Reject nonfinite policy weight");
+InvalidCrew(() => restored.Import(new UtilityLearningData { weights = new[] { new UtilityWeightData { action = AiActionType.CarryAmmo, weight = 1 }, new UtilityWeightData { action = AiActionType.CarryAmmo, weight = 2 } } }), "Reject duplicate imported weights atomically");
+Check(restored.GetWeight(AiActionType.DefendShip) == learned.GetWeight(AiActionType.DefendShip), "Invalid import preserves previous complete profile");
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew
