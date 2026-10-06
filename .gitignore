@@ -34,3 +34,6 @@ Thumbs.db
 
 # Crash reports
 sysinfo.txt
+
+# Local review checklist (keep personal review notes out of the repository)
+/レビュー基準.md
