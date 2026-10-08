@@ -26,6 +26,8 @@ jobs:
         run: dotnet run --project Tools/CI/GameplayChecks.csproj --configuration Release
       - name: Compile production policies and run policy checks
         run: dotnet run --project Tools/CI/Policies/PolicyChecks.csproj --configuration Release
+      - name: Compile production coordination and run coordination checks
+        run: dotnet run --project Tools/CI/Coordination/CoordinationChecks.csproj --configuration Release
       - name: Validate Unity assets and configuration
         run: |
           python3 - <<'PY'
