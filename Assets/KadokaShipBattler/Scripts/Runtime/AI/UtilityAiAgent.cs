@@ -11,7 +11,7 @@ namespace KadokaShipBattler.AI
         前提: チーム・個人方針は能力制限を解除しません。学習状態は方針から独立です。
     } */
     [RequireComponent(typeof(PlayerCrewController), typeof(VisionSensor), typeof(CrewPolicySelection))]
-    [RequireComponent(typeof(UtilityDebugView))]
+    [RequireComponent(typeof(UtilityDebugView), typeof(CrewTaskAssignment))]
     public sealed class UtilityAiAgent : MonoBehaviour
     {
         [SerializeField] private AiPolicyDefinition teamPolicy;
@@ -19,6 +19,10 @@ namespace KadokaShipBattler.AI
         [SerializeField] private bool showDebug;
         private PlayerCrewController actor;
         private CrewPolicySelection policySelection;
+        private CrewTaskAssignment taskAssignment;
+        private VisionSensor sensor;
+        private CrewMember crew;
+        private CrewAmmoInventory inventory;
         private System.Func<AiActionType, float> evaluatePolicyWeight;
         private float ownHullFraction = 1;
         private bool hasObservedInvader;
@@ -36,6 +40,10 @@ namespace KadokaShipBattler.AI
             // 毎評価で同じコンポーネントを探索しません。
             actor = GetComponent<PlayerCrewController>();
             policySelection = GetComponent<CrewPolicySelection>();
+            taskAssignment = GetComponent<CrewTaskAssignment>();
+            sensor = GetComponent<VisionSensor>();
+            crew = GetComponent<CrewMember>();
+            inventory = GetComponent<CrewAmmoInventory>();
             evaluatePolicyWeight = PolicyWeight;
         }
         /* { 処理: 死亡、戦闘未設定、終了時に一時的な判断を解除します。 } */
@@ -48,42 +56,72 @@ namespace KadokaShipBattler.AI
         /* { 処理: 行動と観測対象を解除します。前提: 学習と方針は保持します。 } */
         public void Clear()
         {
-            // 再開時には新しい観測から判断を作り直します。
+            // 再開時には新しい観測と新しい担当から判断を作り直します。
+            taskAssignment?.Release();
+            ResetDecision();
+        }
+
+        /* { 処理: 同じ担当の更新中に予約を解放せず、今回の判断値だけを解除します。 } */
+        private void ResetDecision()
+        {
+            // 継続評価のたびに同等の担当が予約を奪い合うことを防ぎます。
             Decision = null;
             SelectedObservation = null;
         }
         /* {
             処理: 観測した実行可能候補を、適性・学習・方針の補正で比較します。
             戻り値: 死亡、戦闘終了、候補なしの場合は待機です。
-            前提: 緊急補正へ渡す侵入情報は本人の現在の視界に限定します。
+            前提: 緊急補正には本人または味方の新しい観測だけを使います。
         } */
         public AiActionType SelectAction()
         {
             // 今回の観測だけで候補を作り直します。
-            Clear();
-            if (!actor.IsAvailable || actor.Arena == null || actor.Arena.IsFinished) return CurrentAction;
-            var sensor = GetComponent<VisionSensor>();
+            ResetDecision();
+            if (!actor.IsAvailable || actor.Arena == null || actor.Arena.IsFinished)
+            {
+                Clear();
+                return CurrentAction;
+            }
             sensor.Scan();
             ObservationOrigin = sensor.ObservationOrigin;
             ObservationFacing = sensor.FacingDirection;
-            var observations = sensor.Observations;
+            taskAssignment.PublishPerception();
+            var observations = taskAssignment.CanReserve && taskAssignment.Coordinator != null
+                ? taskAssignment.Coordinator.Observations.GetCurrent(Time.time) : sensor.Observations;
             var context = CreateContext();
             ownHullFraction = context.HullFraction;
             hasObservedInvader = false;
-            var candidates = CollectCandidates(sensor, context, observations);
+            var candidates = CollectCandidates(context, observations);
+            FilterReservedCandidates(candidates);
 
             // 候補と現在の方針から行動を確定します。
             Decision = UtilityRules.Evaluate(context, candidates, Learning, evaluatePolicyWeight);
-            foreach (var observation in observations)
+            if (!taskAssignment.TryAssign(Decision.Selected, ownHullFraction, hasObservedInvader))
+            {
+                taskAssignment.Release();
+                Decision = new UtilityDecision(new UtilityCandidate(AiActionType.Idle), Decision.Scores);
+            }
+            // 操作に渡す参照は、共有報告ではなく本人の現在の視界に限定します。
+            foreach (var observation in sensor.Observations)
                 if (observation.TargetId == Decision.Selected.TargetId) SelectedObservation = observation;
             return CurrentAction;
+        }
+
+        /* { 処理: 同等以上の別担当が確保した資源を、採点前に候補から除きます。計算量: 候補数に比例します。 } */
+        private void FilterReservedCandidates(List<UtilityCandidate> candidates)
+        {
+            // リストを追加生成せず、残す候補を前へ詰めます。
+            var remaining = 0;
+            for (var index = 0; index < candidates.Count; index++)
+                if (taskAssignment.CanConsider(candidates[index], ownHullFraction, hasObservedInvader))
+                    candidates[remaining++] = candidates[index];
+            if (remaining < candidates.Count) candidates.RemoveRange(remaining, candidates.Count - remaining);
         }
 
         /* { 処理: 船員と自船の既知情報を評価用の値に変換します。戻り値: 敵の未観測状態を含まない評価文脈です。 } */
         private UtilityContext CreateContext()
         {
             // 自船情報は味方の既知情報として扱います。
-            var crew = GetComponent<CrewMember>();
             var stats = crew.Definition;
             var arena = actor.Arena;
             var ship = actor.TeamSide == TeamSide.Player ? arena.PlayerShip : arena.EnemyShip;
@@ -91,20 +129,19 @@ namespace KadokaShipBattler.AI
             var cannon = actor.TeamSide == TeamSide.Player ? arena.PlayerCannon : null;
             return new UtilityContext(stats.Capabilities, stats.CombatSkill, stats.CarrySkill,
                 crew.CurrentHp / stats.MaxHp, ship.CurrentHull / ship.MaxHull, deck != null ? deck.Deck.WaitingCount / 25f : 1,
-                GetComponent<CrewAmmoInventory>().HasAmmo, cannon != null && cannon.IsLoaded,
+                inventory.HasAmmo, cannon != null && cannon.IsLoaded,
                 stats.AttackMode != NormalAttackMode.None && stats.AttackDamage > 0);
         }
 
         /* {
             処理: 観測と自船砲台から到達可能な行動候補を集めます。
             副作用: 今回の自船内の侵入観測を記録します。
-            前提: 観測リストはこの同期処理中に再走査や変更を行いません。
+            前提: 共有報告を含む観測リストはこの同期処理中に再走査や変更を行いません。
         } */
-        private List<UtilityCandidate> CollectCandidates(VisionSensor sensor, UtilityContext context,
+        private List<UtilityCandidate> CollectCandidates(UtilityContext context,
             IReadOnlyList<VisionObservation> observations)
         {
             // 既知の自船砲台は、視界外でも移動候補になります。
-            var inventory = GetComponent<CrewAmmoInventory>();
             var cannon = actor.TeamSide == TeamSide.Player ? actor.Arena.PlayerCannon : null;
             var candidates = new List<UtilityCandidate> { new UtilityCandidate(AiActionType.Idle) };
             if (cannon != null && (context.CannonLoaded || context.HasAmmo) && TryDistance(cannon.transform.position, out var cannonDistance))
@@ -113,14 +150,15 @@ namespace KadokaShipBattler.AI
                 candidates.Add(new UtilityCandidate(context.CannonLoaded ? AiActionType.OperateCannon : AiActionType.LoadCannon,
                     cannon.GetInstanceID(), point.x, point.y, cannonDistance, CalculateObservedDanger(point, observations)));
             }
-            // 弾の取得と侵入者への防衛は、現在の観測だけから作ります。
+            // 共有弾も重量と保持数を確認します。取得時には本人の視界で再確認します。
+            var carryState = inventory.State;
             foreach (var seen in observations)
             {
                 var point = new Vector2(seen.X, seen.Y);
                 if (seen.Kind == ObservedTargetKind.Ammo)
                 {
-                    var pickup = sensor.GetVisibleAmmo(seen);
-                    if (pickup == null || !inventory.CanPickup(pickup.Round) || !TryDistance(point, out var distance)) continue;
+                    if (carryState.Count >= carryState.MaxCarryCount || carryState.CurrentWeight + seen.AmmoWeight > carryState.CarryCapacity ||
+                        !TryDistance(point, out var distance)) continue;
                     candidates.Add(new UtilityCandidate(AiActionType.CarryAmmo, seen.TargetId, seen.X, seen.Y,
                         distance, CalculateObservedDanger(point, observations), seen.AmmoDamage, seen.AmmoWeight));
                 }
@@ -148,7 +186,7 @@ namespace KadokaShipBattler.AI
         /* { 処理: 観測した敵の近さから地点の危険度を求めます。戻り値: 0から1です。 } */
         private float CalculateObservedDanger(Vector2 point, IReadOnlyList<VisionObservation> observations)
         {
-            // 視界外の敵位置やHPを読みません。
+            // 本人か味方が報告した観測値だけを使い、敵の現在状態を読みません。
             var danger = 0f;
             foreach (var observation in observations)
                 if (observation.Kind == ObservedTargetKind.Crew && observation.TeamSide != actor.TeamSide && observation.Hp > 0)
@@ -161,7 +199,7 @@ namespace KadokaShipBattler.AI
             // 直線距離ではなく、共通の経路探索が返す区間を使います。
             distance = 0;
             var arena = actor.Arena;
-            var stats = GetComponent<CrewMember>().Definition;
+            var stats = crew.Definition;
             var flags = (stats.CanFly ? TraversalAbilities.Fly : 0) | (stats.CanPhase ? TraversalAbilities.Phase : 0);
             if (!arena.Navigation.TryFindPath(new NavPoint(transform.position.x, transform.position.y), new NavPoint(goal.x, goal.y),
                 flags, actor.TeamSide, arena.PlayerShip.IsHullBreached, arena.EnemyShip.IsHullBreached, out var path)) return false;
@@ -182,7 +220,7 @@ namespace KadokaShipBattler.AI
         private float PolicyWeight(AiActionType action)
         {
             // 既存の定義アセットとの互換性を保ちます。
-            var definition = GetComponent<CrewMember>().Definition;
+            var definition = crew.Definition;
             var team = GetDefinitionWeight(teamPolicy, action, definition);
             var individual = GetDefinitionWeight(characterPolicy, action, definition);
             if (!UtilityRules.Range(team, 0, 4) || !UtilityRules.Range(individual, 0, 4)) throw new System.ArgumentException("Policy weights must be finite and between 0 and 4.");

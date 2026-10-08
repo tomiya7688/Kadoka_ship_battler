@@ -105,6 +105,8 @@ Eで砲台へ装填する時は、先に拾った弾を1発だけ渡します。
 
 ### 味方の更新型評価関数
 
+味方AIは弾・砲台・侵入者の担当を共有し、同じ対象への集中を抑えます。味方が実際に得た期限付きの観測から移動先を選び、取得・攻撃の直前には本人の視界で対象を確認します。引継ぎと予約回収、共有情報の範囲は[船員間の作業予約と情報共有](Docs/CrewCoordination.md)を確認してください。
+
 チーム方針と船員ごとの個人方針を変更する際は、Pキーまたは画面右上の`AI policies [P]`を押してください。能力が足りない選択肢は理由付きの無効ボタンになります。AIは次の判断時に新しい設定を反映します。操作方法、緊急補正、検証範囲は[チーム方針と個人方針](Docs/AiPolicies.md)を確認してください。
 
 味方の `UtilityAiAgent` は毎回の観測から待機・弾運搬・装填・砲撃・船内防衛の候補を作り、点数が最も高い候補を選びます。`CrewAmmoAiController` が選ばれた行動を実行し、共通の `NavigationAgent` へ目的地を渡します。操作を外れた瞬間にも現在位置・向きから再評価します。
@@ -128,17 +130,19 @@ Eで砲台へ装填する時は、先に拾った弾を1発だけ渡します。
 
 EditorまたはDevelopment Buildでは、味方のUtilityAiAgentのInspectorでShow Debugを有効にすると選択行動と上位3候補の「基礎点×学習重み×方針重み」を表示します。Gizmosでは目的地への線を表示します。通常のリリースビルドにはこの表示処理を含めません。
 
-チーム・個人方針の設定UIはIssue #6、担当の予約と共有はIssue #7、敵5人の戦術判断と観測共有はIssue #11で接続します。今回の学習は、行動結果による重み補正です。
+チーム・個人方針の設定UIと、味方の担当予約・観測共有を接続しています。敵5人の戦術判断と観測共有はIssue #11で接続します。現在の学習は、行動結果による重み補正です。
 
 ## CI and verification
 
-通常のGitHub Actionsは `.NET 10` で本番の `BattleModel.cs`、`CrewControlState.cs`、`CrewDefinitions.cs`、`AmmoDeckModel.cs`、`VisionModel.cs`、`NavigationModel.cs`、`UtilityModel.cs` を直接コンパイルし、実際の編成・弾デッキ・部屋マップJSONを読み込んで戦闘・操作切替・重量と保持数・5人編成とHP・デッキ循環・視界・経路探索・AI評価と学習の315項目を検査します。Unityのメタデータ・シーン登録・JSONのシーン参照も確認します。
+通常のGitHub Actionsは `.NET 10` で本番の `BattleModel.cs`、`CrewControlState.cs`、`CrewDefinitions.cs`、`AmmoDeckModel.cs`、`VisionModel.cs`、`NavigationModel.cs`、`UtilityModel.cs` を直接コンパイルし、実際の編成・弾デッキ・部屋マップJSONを読み込んで戦闘・操作切替・重量と保持数・5人編成とHP・デッキ循環・視界・経路探索・AI評価と学習の315項目を検査します。方針の選択と補正、船員間の予約と観測共有も、本番モデルをコンパイルする独立したCIで検査します。Unityのメタデータ・シーン登録・JSONのシーン参照も確認します。
 
 ```powershell
 dotnet run --project Tools/CI/GameplayChecks.csproj --configuration Release
+dotnet run --project Tools/CI/Policies/PolicyChecks.csproj --configuration Release
+dotnet run --project Tools/CI/Coordination/CoordinationChecks.csproj --configuration Release
 ```
 
-UnityのTest RunnerのPlayModeテストは91件です。実シーンの戦闘・勝敗・描画に加えて、操作切替、状態保持、AI復帰と運搬・砲撃、船員別の移動・攻撃、重量と保持数の上限、複数弾の順次装填、両陣営5人の生成、HP・死亡時の操作切替、データ追加、弾デッキの出現・装填・着弾・時間切れ・破棄時の返却、25枠の使い切り、扇状視界・壁とドア・観測消失・AIの視界制限、部屋指定の移動、壁の通過拒否、飛行・すり抜け、ドア開閉時の再探索、船間の往復、壁越しの取得・攻撃の拒否、適性・学習値による判断変更、学習付きの実際の運搬・防衛、判断解除、視界外・到達不能な候補の除外も検査します。
+UnityのTest RunnerでPlayModeテストを実行してください。実シーンの戦闘・勝敗・描画に加えて、操作切替、状態保持、AI復帰と運搬・砲撃、船員別の移動・攻撃、重量と保持数の上限、複数弾の順次装填、両陣営5人の生成、HP・死亡時の操作切替、データ追加、弾デッキの出現・装填・着弾・時間切れ・破棄時の返却、25枠の使い切り、扇状視界・壁とドア・観測消失・AIの視界制限、部屋指定の移動、壁の通過拒否、飛行・すり抜け、ドア開閉時の再探索、船間の往復、壁越しの取得・攻撃の拒否、適性・学習値による判断変更、学習付きの実際の運搬・防衛、判断解除、視界外・到達不能な候補の除外も検査します。
 
 GitHub上のUnity PlayModeジョブには別途ライセンス設定が必要です。変数 `RUN_UNITY_TESTS=true` と、GameCIに適合する `UNITY_LICENSE` または `UNITY_EMAIL` / `UNITY_PASSWORD` / `UNITY_SERIAL` をsecretsへ設定してください。ローカルUnityのライセンスはGitHubへ自動転送されません。未設定時はUnityジョブがskippedになり、通常の戦闘ロジックCIは実行されます。
 
