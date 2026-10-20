@@ -37,5 +37,19 @@ namespace KadokaShipBattler.Ships
         }
 
         public bool TryDamageCore(float amount) => BattleState.TryDamageCore(amount);
+
+        /* {
+            責務: 指定したワールド座標が、この船の甲板矩形の内側にあるか判定します。
+            前提: 甲板はこのTransformの位置を中心に、localScaleを幅と高さとする矩形です。境界上は内側に含みます。
+            戻り値: 内側ならtrue。座標が非有限ならfalseです。
+        } */
+        public bool ContainsDeckPoint(Vector2 point)
+        {
+            // 非有限の座標で甲板上にいると誤判定しません。
+            if (float.IsNaN(point.x) || float.IsNaN(point.y) || float.IsInfinity(point.x) || float.IsInfinity(point.y)) return false;
+            var offset = point - (Vector2)transform.position;
+            var half = (Vector2)transform.localScale * 0.5f;
+            return Mathf.Abs(offset.x) <= half.x && Mathf.Abs(offset.y) <= half.y;
+        }
     }
 }
