@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 
 namespace KadokaShipBattler.Core
 {
-    // Playable fixture; the enemy uses a simple scripted behavior, not Utility AI.
+    // Playable fixture; the enemy team is driven by EnemyTacticalDirector from its own observations.
     public sealed class BattlePrototype : MonoBehaviour
     {
         [SerializeField] private TextAsset crewSetup;
@@ -30,6 +30,8 @@ namespace KadokaShipBattler.Core
         public IReadOnlyList<CrewMember> EnemyCrew => enemyMembers.AsReadOnly();
         private readonly Dictionary<string, CharacterDefinition> characterDefinitions = new();
         public CannonController PlayerCannon { get; private set; }
+        public CannonController EnemyCannon { get; private set; }
+        public EnemyTacticalDirector EnemyTactics { get; private set; }
         public ShipCore EnemyCore { get; private set; }
         public Camera GameCamera { get; private set; }
         public bool EnemyActionsEnabled { get; set; } = true;
@@ -38,10 +40,6 @@ namespace KadokaShipBattler.Core
         public bool PlayerWon => EnemyShip.IsDestroyed && !PlayerShip.IsDestroyed;
         private readonly List<ScriptableObject> definitions = new();
         private Sprite square;
-        private CrewMember enemyCrew;
-        private CrewAmmoInventory enemyInventory;
-        private CannonController enemyCannon;
-        private float enemyTimer;
         private GameObject selectionMarker;
 
         private void Awake()
@@ -86,7 +84,7 @@ namespace KadokaShipBattler.Core
             CreateCore(PlayerShip, new Vector2(-6, 1.5f));
             EnemyCore = CreateCore(EnemyShip, new Vector2(6, 1.5f));
             PlayerCannon = CreateCannon(PlayerShip, EnemyShip, new Vector2(-2, 0));
-            enemyCannon = CreateCannon(EnemyShip, PlayerShip, new Vector2(2, 0));
+            EnemyCannon = CreateCannon(EnemyShip, PlayerShip, new Vector2(2, 0));
             Controls = gameObject.AddComponent<CrewControlDirector>();
             var playerPositions = new[] { new Vector2(-5, 0), new Vector2(-4.5f, 1), new Vector2(-6, 0.5f), new Vector2(-3.5f, 1.7f), new Vector2(-6, -0.5f) };
             var enemyPositions = new[] { new Vector2(2, 0), new Vector2(5, -1.5f), new Vector2(4.6f, 1), new Vector2(3, -1.7f), new Vector2(6, -1.4f) };
@@ -98,11 +96,12 @@ namespace KadokaShipBattler.Core
                 AddPlayerCrew(playerPositions[slot], color, characterDefinitions[playerFormation[slot].id]);
                 var enemy = CreateCrew(TeamSide.Enemy, enemyPositions[slot], new Color(1, 0.2f + slot * 0.1f, 0.2f), characterDefinitions[enemyFormation[slot].id]);
                 enemy.gameObject.AddComponent<CrewGuardAiController>();
+                enemy.gameObject.AddComponent<EnemyRoleController>();
                 enemyMembers.Add(enemy);
             }
             selectionMarker = Visual("Controlled Crew Marker", new Vector2(-5, 0.4f), new Vector2(0.2f, 0.1f), Color.white, 4);
-            enemyCrew = enemyMembers[0];
-            enemyInventory = enemyCrew.GetComponent<CrewAmmoInventory>();
+            EnemyTactics = gameObject.AddComponent<EnemyTacticalDirector>();
+            EnemyTactics.Initialize(this, enemyMembers);
             var ammoDefinitions = new Dictionary<string, AmmoDefinition>();
             foreach (var stats in AmmoSetup.ammo)
             {
@@ -172,53 +171,12 @@ namespace KadokaShipBattler.Core
             if (Input.GetKeyDown(KeyCode.R)) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             TickEnemy(Time.deltaTime);
         }
+        /* { 処理: 敵の戦術ディレクターを一段階進めます。引数: deltaTimeは有限の正の秒数です。戦闘終了後や無効化中は何もしません。 } */
         public void TickEnemy(float deltaTime)
         {
             if (IsFinished || !EnemyActionsEnabled || deltaTime <= 0 || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
-            if (enemyCrew == null || !enemyCrew.IsAlive)
-            {
-                enemyCrew = enemyMembers.Find(member => member.IsAlive && member.Can(CharacterCapability.Combat) && member.Can(CharacterCapability.OperateCannon) && member.Can(CharacterCapability.CarryAmmo));
-                if (enemyCrew == null) return;
-                enemyInventory = enemyCrew.GetComponent<CrewAmmoInventory>();
-            }
-            if (PlayerShip.IsHullBreached)
-            {
-                // The prototype core objective is fixed; guards attack only observed targets.
-                MoveEnemyToward(new Vector3(-6, 1.5f, 0), deltaTime);
-                return;
-            }
-            enemyTimer += deltaTime;
-            if (enemyCannon.IsLoaded || enemyInventory.HasAmmo)
-            {
-                if (MoveEnemyToward(enemyCannon.transform.position, deltaTime)) return;
-                if (!enemyCannon.IsLoaded) enemyCannon.TryLoadFrom(enemyInventory);
-                if (enemyTimer >= 10f && enemyCannon.FireAt(PlayerShip)) enemyTimer = 0;
-                return;
-            }
-            var sensor = enemyCrew.GetComponent<VisionSensor>();
-            sensor.Scan();
-            VisionObservation nearest = null;
-            var nearestDistance = float.PositiveInfinity;
-            foreach (var observation in sensor.Observations)
-            {
-                if (observation.Kind != ObservedTargetKind.Ammo || observation.TeamSide != TeamSide.Enemy) continue;
-                var pickup = sensor.GetVisibleAmmo(observation);
-                if (pickup == null || !enemyInventory.CanPickup(pickup.Round)) continue;
-                var distance = ((Vector2)enemyCrew.transform.position - new Vector2(observation.X, observation.Y)).sqrMagnitude;
-                if (distance >= nearestDistance) continue;
-                nearest = observation;
-                nearestDistance = distance;
-            }
-            if (nearest == null) return;
-            if (!MoveEnemyToward(new Vector3(nearest.X, nearest.Y, 0), deltaTime))
-                sensor.TryPickupVisible(nearest, enemyInventory);
+            EnemyTactics.Tick(deltaTime);
         }
-
-        private bool MoveEnemyToward(Vector3 destination, float deltaTime)
-        {
-            return enemyCrew.GetComponent<NavigationAgent>().MoveTo(destination, deltaTime) != NavigationStatus.Arrived;
-        }
-
         private ShipController CreateShip(TeamSide side, Vector2 position, Color color)
         {
             var ship = Visual(side + " Deck", position, new Vector2(6, 5), color, 0).AddComponent<ShipController>();
@@ -274,6 +232,7 @@ namespace KadokaShipBattler.Core
             }
             GUI.Label(new Rect(25, 110, 730, 25), $"White marker: controlled crew. Yellow ammo: weight 2. Orange ammo: weight 3. Bridge: {(EnemyShip.IsHullBreached ? "OPEN" : "LOCKED")}");
             GUI.Label(new Rect(25, 135, 730, 25), $"Deck waiting: Player {PlayerAmmo.Deck.WaitingCount}/25   Enemy {EnemyAmmo.Deck.WaitingCount}/25   Ground ammo expires after 60s");
+            GUI.Label(new Rect(10, 205, 800, 30), $"Enemy tactic (debug): {EnemyTactics.Goal}");
             GUI.Label(new Rect(10, 185, 800, 30), IsFinished ? (PlayerWon ? "VICTORY - enemy core destroyed" : "DEFEAT - player core destroyed") :
                 "Yellow: ammo   Gray: cannon   Purple: core. Breach the hull, cross the bridge, then attack the core.");
         }
