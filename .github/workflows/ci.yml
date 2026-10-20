@@ -1,0 +1,36 @@
+name: Unity project structure
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Unity project metadata
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          json.loads(Path("Packages/manifest.json").read_text(encoding="utf-8"))
+          assert Path("ProjectSettings/ProjectVersion.txt").exists(), "Missing Unity version file"
+          guids = {}
+          for meta in Path("Assets").rglob("*.meta"):
+              data = meta.read_text(encoding="utf-8")
+              match = re.search(r"(?m)^guid:\s*([0-9a-f]{32})\s*$", data)
+              if not match:
+                  raise SystemExit(f"Missing/invalid GUID: {meta}")
+              guid = match.group(1)
+              if guid in guids:
+                  raise SystemExit(f"Duplicate GUID: {guids[guid]} and {meta}")
+              guids[guid] = meta
+          print(f"Checked {len(guids)} Unity asset GUIDs")
+          PY
