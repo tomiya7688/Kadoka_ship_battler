@@ -23,6 +23,15 @@ namespace KadokaShipBattler.Characters
         public float CarrySkill => carrySkill;
         public float RepairSkill => repairSkill;
 
+        public void Initialize(string id, string name, CharacterCapability allowedCapabilities, float speed, float combat)
+        {
+            characterId = id;
+            displayName = name;
+            capabilities = allowedCapabilities;
+            moveSpeed = Mathf.Max(0f, speed);
+            combatSkill = Mathf.Clamp(combat, 0f, 10f);
+        }
+
         public bool HasCapability(CharacterCapability capability)
         {
             return (capabilities & capability) == capability;

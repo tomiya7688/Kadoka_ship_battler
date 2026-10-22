@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/BattleModel.cs" Link="BattleModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/TeamSide.cs" Link="TeamSide.cs" />
+  </ItemGroup>
+</Project>
