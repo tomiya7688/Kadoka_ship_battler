@@ -1,3 +1,5 @@
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+// リリースビルドではクラスごとコンパイルしません。追加側のBattlePrototypeも同じ条件で囲みます。
 using System.Text;
 using KadokaShipBattler.Characters;
 using KadokaShipBattler.Core;
@@ -12,7 +14,6 @@ namespace KadokaShipBattler.AI
     } */
     public sealed class BattleDebugOverlay : MonoBehaviour
     {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         private const float RefreshSeconds = 0.25f;
         private readonly StringBuilder builder = new();
         private BattlePrototype arena;
@@ -76,7 +77,7 @@ namespace KadokaShipBattler.AI
             {
                 var utility = actor.GetComponent<UtilityAiAgent>();
                 var individual = policy != null ? policy.GetIndividualPolicy(actor).ToString() : "-";
-                var action = actor.IsDirectlyControlled ? "Direct" : utility.CurrentAction.ToString();
+                var action = actor.IsDirectlyControlled ? "Direct" : utility != null ? utility.CurrentAction.ToString() : "-";
                 builder.AppendLine($"  {actor.name}: {individual} / {action} {FormatReservation(actor)}{(HasInvalidScore(utility) ? " !INVALID SCORE" : string.Empty)}");
             }
         }
@@ -99,6 +100,6 @@ namespace KadokaShipBattler.AI
                 if (float.IsNaN(scores[index].Score) || float.IsInfinity(scores[index].Score)) return true;
             return false;
         }
-#endif
     }
 }
+#endif
