@@ -205,7 +205,8 @@ namespace KadokaShipBattler.AI
             claimedAmmo.Clear();
             foreach (var controller in controllers)
             {
-                if (GetRole(controller.MemberId) != EnemyTacticalRole.Supplier) continue;
+                var role = GetRole(controller.MemberId);
+                if (role != EnemyTacticalRole.Supplier && role != EnemyTacticalRole.Gunner) continue;
                 var target = FindNearestUnclaimedAmmo(controller.transform.position);
                 if (target == null) continue;
                 ammoTargets[controller.MemberId] = target.TargetId;

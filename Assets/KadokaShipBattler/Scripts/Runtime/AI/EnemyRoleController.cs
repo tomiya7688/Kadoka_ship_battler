@@ -79,7 +79,8 @@ namespace KadokaShipBattler.AI
             var cannon = arena.EnemyCannon;
             if (!cannon.IsLoaded && !inventory.HasAmmo)
             {
-                FetchVisibleAmmo(deltaTime);
+                // 補給役が不在でも、味方が見つけた弾の位置へ向かえます。拾得は本人が見た時だけです。
+                if (!FetchVisibleAmmo(deltaTime)) FollowAssignedAmmo(deltaTime);
                 return;
             }
             if (IsStillMoving(cannon.transform.position, deltaTime)) return;

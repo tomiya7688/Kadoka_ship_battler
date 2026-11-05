@@ -64,6 +64,16 @@ internal static class TacticsChecks
         estimator.RecordIntruderPresence(360, 0);
         Check(estimator.GetTendency(360).BoardingPressure < raised * 0.2f, "Pressure decays without observation");
 
+        // 砲撃の記録は、侵入者圧力の減衰に使う経過時間を縮めません。
+        var independent = new PlayerTendencyEstimator(0);
+        independent.RecordIntruderPresence(1, 2);
+        independent.RecordIntruderPresence(11, 2);
+        var before = independent.GetTendency(11).BoardingPressure;
+        independent.RecordShellHit(20);
+        independent.RecordIntruderPresence(30, 0);
+        var decayed = independent.GetTendency(30).BoardingPressure;
+        Check(Math.Abs(decayed - before * (float)Math.Exp(-1.9)) < 0.01f, "Shell records do not shorten pressure decay");
+
         // 時刻の逆行と不正値は状態を変えずに拒否します。
         Rejects(() => estimator.RecordShellHit(1), "Backward time rejected");
         Rejects(() => estimator.RecordObservedAmmo(0, 2), "Unspecified ammo id rejected");
