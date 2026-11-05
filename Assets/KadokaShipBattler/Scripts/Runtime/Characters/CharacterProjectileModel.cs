@@ -61,10 +61,11 @@ namespace KadokaShipBattler.Characters
             FlightSeconds += deltaTime;
             var multiplier = behaviour?.GetSpeedMultiplier(FlightSeconds) ?? 1f;
             if (!IsFinite(multiplier) || multiplier < 0) multiplier = 1f;
-            var step = speed * multiplier * deltaTime;
-            var dx = targetX - X;
-            var dy = targetY - Y;
-            var distance = (float)Math.Sqrt(dx * dx + dy * dy);
+            // 極端に大きい座標や速度でもfloatの範囲を超えないよう、中間計算はdoubleで行います。
+            var step = (double)speed * multiplier * deltaTime;
+            var dx = (double)targetX - X;
+            var dy = (double)targetY - Y;
+            var distance = Math.Sqrt(dx * dx + dy * dy);
             if (distance <= step)
             {
                 X = targetX;
@@ -72,8 +73,8 @@ namespace KadokaShipBattler.Characters
                 Status = ProjectileFlightStatus.Landed;
                 return Status;
             }
-            X += dx / distance * step;
-            Y += dy / distance * step;
+            X = (float)(X + dx / distance * step);
+            Y = (float)(Y + dy / distance * step);
             return Status;
         }
 

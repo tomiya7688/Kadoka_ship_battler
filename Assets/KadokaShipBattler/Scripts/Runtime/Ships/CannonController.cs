@@ -71,7 +71,11 @@ namespace KadokaShipBattler.Ships
         {
             if (crew == null || OwnerShip == null || crew.TeamSide != OwnerShip.TeamSide)
                 return false;
-            return IsLoaded ? crew.Can(CharacterCapability.OperateCannon) && FireAt(targetShip) : TryLoadFrom(inventory);
+            if (IsLoaded) return crew.Can(CharacterCapability.OperateCannon) && FireAt(targetShip);
+            if (TryLoadFrom(inventory)) return true;
+            // 直接操作中で弾を持たない船員は、自分自身を弾として装填します。AIの自動操作では装填しません。
+            var controller = crew.GetComponent<PlayerCrewController>();
+            return inventory != null && !inventory.HasAmmo && controller != null && controller.IsDirectlyControlled && TryLoadCharacter(crew);
         }
         private void OnDestroy() => state.Clear();
     }

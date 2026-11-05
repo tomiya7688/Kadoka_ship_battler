@@ -59,6 +59,22 @@ namespace KadokaShipBattler.Tests
             Assert.IsFalse(cannon.IsLoaded);
         }
 
+        [Test]
+        public void DirectlyControlledEmptyHandedCrewLoadsItselfByInteracting()
+        {
+            var player = Ship(TeamSide.Player, 0);
+            var cannon = Cannon(player, Ship(TeamSide.Enemy, 3));
+            var passenger = Passenger(TeamSide.Player, 2);
+            var controller = passenger.GetComponent<PlayerCrewController>();
+            var inventory = passenger.GetComponent<CrewAmmoInventory>();
+            // 自動操作のままでは装填しません。
+            Assert.IsFalse(cannon.TryInteract(passenger, inventory));
+            Assert.IsFalse(cannon.IsLoaded);
+            controller.SetDirectControl(true);
+            Assert.IsTrue(cannon.TryInteract(passenger, inventory));
+            Assert.AreSame(passenger, cannon.LoadedCharacter);
+        }
+
         [UnityTest]
         public IEnumerator LoadedCharacterFliesAndLandsThenResumesActing()
         {

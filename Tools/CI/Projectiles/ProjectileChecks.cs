@@ -50,6 +50,11 @@ internal static class ProjectileChecks
         Check(shot.Advance(1) == ProjectileFlightStatus.Landed && shot.X == 10, "Lands at target");
         Check(shot.Advance(1) == ProjectileFlightStatus.Landed && shot.FlightSeconds == 2, "Landed shot stays put");
 
+        // 極端に大きい座標でも、距離計算が溢れず飛行が進みます。
+        var huge = new CharacterProjectileModel(-3e38f, 0, 3e38f, 0, 1e38f, 1);
+        huge.Advance(1);
+        Check(!float.IsNaN(huge.X) && !float.IsInfinity(huge.X) && huge.X > -3e38f && huge.Status == ProjectileFlightStatus.Flying, "Huge distance does not overflow");
+
         // 固有挙動は速度だけを変えます。不正な倍率は無視します。
         var fast = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, new Boost());
         Check(fast.Advance(1) == ProjectileFlightStatus.Landed, "Behaviour speeds the flight");
