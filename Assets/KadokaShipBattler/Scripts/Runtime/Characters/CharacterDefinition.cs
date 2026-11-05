@@ -14,6 +14,8 @@ namespace KadokaShipBattler.Characters
         [Range(0f, 10f)] [SerializeField] private float combatSkill = 5f;
         [Range(0f, 10f)] [SerializeField] private float carrySkill = 5f;
         [Range(0f, 10f)] [SerializeField] private float repairSkill = 5f;
+        [Min(0f)] [SerializeField] private float carryCapacity = 5f;
+        [Min(0)] [SerializeField] private int maxCarryCount = 1;
 
         public string CharacterId => characterId;
         public string DisplayName => displayName;
@@ -22,14 +24,22 @@ namespace KadokaShipBattler.Characters
         public float CombatSkill => combatSkill;
         public float CarrySkill => carrySkill;
         public float RepairSkill => repairSkill;
+        public float CarryCapacity => carryCapacity;
+        public int MaxCarryCount => maxCarryCount;
 
-        public void Initialize(string id, string name, CharacterCapability allowedCapabilities, float speed, float combat)
+        public void Initialize(string id, string name, CharacterCapability allowedCapabilities, float speed, float combat,
+            float capacity = 5f, int maxCount = 1)
         {
+            if (capacity < 0 || float.IsNaN(capacity) || float.IsInfinity(capacity))
+                throw new System.ArgumentOutOfRangeException(nameof(capacity));
+            if (maxCount < 0) throw new System.ArgumentOutOfRangeException(nameof(maxCount));
             characterId = id;
             displayName = name;
             capabilities = allowedCapabilities;
             moveSpeed = Mathf.Max(0f, speed);
             combatSkill = Mathf.Clamp(combat, 0f, 10f);
+            carryCapacity = capacity;
+            maxCarryCount = maxCount;
         }
 
         public bool HasCapability(CharacterCapability capability)

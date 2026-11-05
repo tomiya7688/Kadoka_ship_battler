@@ -1,31 +1,70 @@
 using System;
+using System.Collections.Generic;
 
 namespace KadokaShipBattler.Core
 {
     public interface IAmmo
     {
         float Damage { get; }
+        float Weight { get; }
     }
 
     public sealed class AmmoCarryState
     {
-        public IAmmo CarriedAmmo { get; private set; }
+        private readonly List<IAmmo> items = new();
+        private readonly List<float> acceptedWeights = new();
+        private double currentWeight;
+        public IReadOnlyList<IAmmo> Items { get; }
+        public IAmmo CarriedAmmo => items.Count > 0 ? items[0] : null;
+        public int Count => items.Count;
+        public float CurrentWeight => (float)currentWeight;
+        public float CarryCapacity { get; private set; }
+        public int MaxCarryCount { get; private set; }
+
+        public AmmoCarryState(float carryCapacity = float.MaxValue, int maxCarryCount = 1)
+        {
+            Items = items.AsReadOnly();
+            ConfigureLimits(carryCapacity, maxCarryCount);
+        }
+
+        // Existing items survive reduced limits; only new pickups are blocked until they fit again.
+        public void ConfigureLimits(float carryCapacity, int maxCarryCount)
+        {
+            if (!IsNonNegativeFinite(carryCapacity)) throw new ArgumentOutOfRangeException(nameof(carryCapacity));
+            if (maxCarryCount < 0) throw new ArgumentOutOfRangeException(nameof(maxCarryCount));
+            CarryCapacity = carryCapacity;
+            MaxCarryCount = maxCarryCount;
+        }
+
+        public bool CanPickup(IAmmo ammo, bool canCarry)
+        {
+            return canCarry && ammo != null && Count < MaxCarryCount &&
+                IsNonNegativeFinite(ammo.Damage) && IsNonNegativeFinite(ammo.Weight) &&
+                currentWeight + ammo.Weight <= CarryCapacity;
+        }
 
         public bool TryPickup(IAmmo ammo, bool canCarry)
         {
-            if (!canCarry || ammo == null || CarriedAmmo != null ||
-                float.IsNaN(ammo.Damage) || float.IsInfinity(ammo.Damage) || ammo.Damage < 0f)
-                return false;
-            CarriedAmmo = ammo;
+            if (!CanPickup(ammo, canCarry)) return false;
+            items.Add(ammo);
+            acceptedWeights.Add(ammo.Weight);
+            currentWeight += ammo.Weight;
             return true;
         }
 
         public IAmmo TakeAmmo()
         {
             var ammo = CarriedAmmo;
-            CarriedAmmo = null;
+            if (ammo == null) return null;
+            currentWeight = Math.Max(0, currentWeight - acceptedWeights[0]);
+            items.RemoveAt(0);
+            acceptedWeights.RemoveAt(0);
+            if (items.Count == 0) currentWeight = 0;
             return ammo;
         }
+
+        private static bool IsNonNegativeFinite(float value) =>
+            value >= 0 && !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
     public sealed class ShipBattleState
