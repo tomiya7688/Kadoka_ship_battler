@@ -23,7 +23,9 @@ namespace KadokaShipBattler.AI
             EnemyTacticalSituation situation, PlayerTendency tendency, Dictionary<int, EnemyTacticalRole> result)
         {
             // 検証後にまとめて書き込み、不完全な割り当てを残しません。
-            if (aliveCrew == null || situation == null || result == null) throw new ArgumentNullException(nameof(aliveCrew));
+            if (aliveCrew == null) throw new ArgumentNullException(nameof(aliveCrew));
+            if (situation == null) throw new ArgumentNullException(nameof(situation));
+            if (result == null) throw new ArgumentNullException(nameof(result));
             if (!Enum.IsDefined(typeof(EnemyTacticalGoal), goal)) throw new ArgumentOutOfRangeException(nameof(goal));
             var ordered = new List<EnemyCrewProfile>(aliveCrew);
             ordered.Sort(CompareBySlot);
@@ -63,7 +65,7 @@ namespace KadokaShipBattler.AI
             var gunnerDefends = goal == EnemyTacticalGoal.DefendShip && situation.ObservedIntruderCount >= 2;
             foreach (var member in ordered)
             {
-                if (member.Id != gunnerId) continue;
+                if (gunnerId == 0 || member.Id != gunnerId) continue;
                 roles[member.Id] = gunnerDefends && member.CanAttack ? EnemyTacticalRole.Defender : EnemyTacticalRole.Gunner;
             }
             AssignSuppliers(ordered, goal == EnemyTacticalGoal.DefendShip, roles);

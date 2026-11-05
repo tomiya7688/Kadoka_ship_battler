@@ -64,8 +64,9 @@ namespace KadokaShipBattler.AI
         {
             // 圧力は観測が続く間だけ上がり、観測がなければ約10秒の時定数で下がります。
             if (intruderCount < 0) throw new ArgumentOutOfRangeException(nameof(intruderCount));
-            var elapsed = now - latestTime;
+            var previousTime = latestTime;
             RequireTime(now);
+            var elapsed = now - previousTime;
             var target = Math.Min(1f, intruderCount / 2f);
             var blend = 1f - (float)Math.Exp(-elapsed / BoardingTimeConstantSeconds);
             boardingPressure += (target - boardingPressure) * blend;
