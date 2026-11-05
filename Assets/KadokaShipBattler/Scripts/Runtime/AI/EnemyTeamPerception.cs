@@ -51,6 +51,7 @@ namespace KadokaShipBattler.AI
         public void Refresh(float now, ShipController ownShip)
         {
             // 一覧を再利用し、毎回新しいコレクションを作りません。
+            if (ownShip == null) throw new System.ArgumentNullException(nameof(ownShip));
             intruders.Clear();
             ownAmmo.Clear();
             playerAmmo.Clear();

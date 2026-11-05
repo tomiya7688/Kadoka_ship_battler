@@ -47,6 +47,11 @@ namespace KadokaShipBattler.AI
             // 同じ戦闘に対する再初期化で、古い登録を残しません。
             arena = battle;
             controllers.Clear();
+            perception.Clear();
+            roles.Clear();
+            ammoTargets.Clear();
+            claimedAmmo.Clear();
+            searchIndexes.Clear();
             foreach (var member in crew)
             {
                 var controller = member.GetComponent<EnemyRoleController>();
@@ -72,7 +77,8 @@ namespace KadokaShipBattler.AI
             if (decisionTimer <= 0)
             {
                 Decide();
-                decisionTimer = DecisionIntervalSeconds;
+                // 通常は端数を保持して判断間隔を一定に保ちます。長いフレーム停止の後は遅れを溜めず、次の間隔から再開します。
+                decisionTimer = Mathf.Clamp(decisionTimer + DecisionIntervalSeconds, 0, DecisionIntervalSeconds);
             }
             if (!arena.PlayerShip.IsHullBreached) cannonTimer += deltaTime;
             foreach (var controller in controllers) controller.Tick(GetRole(controller.MemberId), deltaTime);
