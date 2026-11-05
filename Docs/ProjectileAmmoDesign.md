@@ -49,32 +49,35 @@ remainingHardness <= 0 -> Destroyed
 通常衝突を行う条件:
 
 - 敵対陣営である。
-- 2D上の衝突範囲が重なる。
-- 論理高度の差が衝突許容値以内。
+- 2D上のProjectileの当たり判定が実際に重なる。
 - 双方が `Interceptable`。
-- 同一ペアの現在の交差が未処理。
+- 同一ペアの現在の接触が未処理。
+
+**軌道の種類に関係なく、当たれば衝突する。**
 
 味方同士のProjectileは通常衝突しない。
 
-## 3. 弾道と論理高度
+## 3. 弾道
 
-2D見下ろし表示とは別に論理高度を持つ。
+Direct / Arc の違いは、2D空間上で通る軌道そのものの違いとして表現する。
 
 ```text
 ProjectileState
 ├─ position2D
 ├─ trajectory
-├─ logicalHeight
 ├─ speed
 ├─ remainingHardness
 └─ status
 ```
 
-- Direct: 低高度中心。
-- Arc: 中盤で高高度になる。
-- Special: Behaviourが高度曲線を変更できる。
+- Direct: 比較的まっすぐ目標へ向かう。
+- Arc: 2D上で曲線軌道を描く。
+- Special: Behaviourが軌道を変更できる。
 
-この高度差により、直射弾と山なり弾が画面上で交差しても相殺されない場合を作る。
+DirectとArcが交差して同じ時刻に当たり判定が重なれば衝突する。
+軌道が交差していても、通過する時刻が違えば衝突しない。
+
+軌道や高度差による衝突無効化は使用しない。
 
 ## 4. 特殊効果による通常衝突の上書き
 
