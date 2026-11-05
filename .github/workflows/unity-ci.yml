@@ -30,6 +30,8 @@ jobs:
         run: dotnet run --project Tools/CI/Coordination/CoordinationChecks.csproj --configuration Release
       - name: Compile production enemy tactics and run tactics checks
         run: dotnet run --project Tools/CI/Tactics/TacticsChecks.csproj --configuration Release
+      - name: Compile production character projectile model and run projectile checks
+        run: dotnet run --project Tools/CI/Projectiles/ProjectileChecks.csproj --configuration Release
       - name: Validate Unity assets and configuration
         run: |
           python3 - <<'PY'
