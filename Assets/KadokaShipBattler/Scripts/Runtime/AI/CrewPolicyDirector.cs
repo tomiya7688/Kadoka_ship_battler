@@ -60,7 +60,7 @@ namespace KadokaShipBattler.AI
         /* { 処理: 登録船員の個人設定を取得します。前提: 同じ戦闘の登録済み船員です。 } */
         public AiPolicyId GetIndividualPolicy(PlayerCrewController actor) => state.GetIndividualPolicy(actor.GetInstanceID());
 
-        /* { 処理: 登録船員に対する方針と戦況の重みを取得します。前提: 侵入の有無は本人の観測だけで求めます。 } */
+        /* { 処理: 登録船員に対する方針と戦況の重みを取得します。前提: 侵入の有無は本人または味方の新しい観測で求めます。 } */
         public float GetWeight(PlayerCrewController actor, AiActionType action, float hullFraction, bool hasObservedInvader) =>
             state.GetWeight(actor.GetInstanceID(), action, hullFraction, hasObservedInvader);
     }
