@@ -1,4 +1,6 @@
 using KadokaShipBattler.Core;
+using KadokaShipBattler.Characters;
+using System.Text.Json;
 
 var checks = 0;
 void Check(bool condition, string description)
@@ -116,6 +118,63 @@ reducedBag.TryPickup(heavy, true);
 reducedBag.ConfigureLimits(1, 1);
 Check(reducedBag.Count == 2 && reducedBag.CurrentWeight == 5 && !reducedBag.CanPickup(ammo, true), "Reduced limits preserve held items and prevent additions");
 Check(ReferenceEquals(reducedBag.TakeAmmo(), light) && ReferenceEquals(reducedBag.TakeAmmo(), heavy) && reducedBag.CurrentWeight == 0, "Over-limit inventory can still be unloaded safely");
+var crewJson = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "PrototypeCrew.json"));
+var jsonOptions = new JsonSerializerOptions { IncludeFields = true };
+BattleCrewDefinition ReadCrew() => JsonSerializer.Deserialize<BattleCrewDefinition>(crewJson, jsonOptions);
+var crewSetup = ReadCrew();
+crewSetup.Validate();
+Check(crewSetup.GetTeam(TeamSide.Player).Length == 5 && crewSetup.GetTeam(TeamSide.Enemy).Length == 5, "Production JSON defines five crew per team");
+Check(crewSetup.GetTeam(TeamSide.Player)[0].id == "leader", "First formation slot is leader");
+Check(crewSetup.GetTeam(TeamSide.Player)[1].attackMode == NormalAttackMode.Ranged, "Gunner defines a ranged attack");
+Check(crewSetup.GetTeam(TeamSide.Player)[2].maxCarryCount == 3 && crewSetup.GetTeam(TeamSide.Player)[2].carryCapacity == 9, "Carrier defines its own carrying stats");
+Check(crewSetup.GetTeam(TeamSide.Player)[3].canFly && crewSetup.GetTeam(TeamSide.Player)[3].canPhase, "Scout defines flight and phase flags");
+Check(crewSetup.GetTeam(TeamSide.Player)[4].maxHp == 180 && crewSetup.GetTeam(TeamSide.Player)[4].projectileHardness == 5, "Defender defines HP and projectile hardness");
+void InvalidCrew(Action action, string description)
+{
+    var rejected = false;
+    try { action(); } catch (ArgumentException) { rejected = true; }
+    Check(rejected, description);
+}
+foreach (var size in new[] { 0, 4, 6 })
+{
+    var invalid = ReadCrew();
+    invalid.player.slots = Enumerable.Repeat("leader", size).ToArray();
+    InvalidCrew(invalid.Validate, "Reject player formation size " + size);
+    invalid = ReadCrew();
+    invalid.enemy.slots = Enumerable.Repeat("leader", size).ToArray();
+    InvalidCrew(invalid.Validate, "Reject enemy formation size " + size);
+}
+var unknownCrew = ReadCrew();
+unknownCrew.player.slots[2] = "missing";
+InvalidCrew(unknownCrew.Validate, "Reject unknown formation character");
+var duplicateCrew = ReadCrew();
+duplicateCrew.characters[1].id = duplicateCrew.characters[0].id;
+InvalidCrew(duplicateCrew.Validate, "Reject duplicate character definitions");
+var repairCrew = ReadCrew();
+repairCrew.characters[0].capabilities |= CharacterCapability.Repair;
+InvalidCrew(repairCrew.Validate, "Repair cannot be assigned to characters");
+foreach (var badHp in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+{
+    var invalid = ReadCrew();
+    invalid.characters[0].maxHp = badHp;
+    InvalidCrew(invalid.Validate, "Reject invalid character HP " + badHp);
+}
+var invalidAttack = ReadCrew();
+invalidAttack.characters[0].attackMode = (NormalAttackMode)99;
+InvalidCrew(invalidAttack.Validate, "Reject unknown attack mode");
+var invalidRange = ReadCrew();
+invalidRange.characters[0].attackRange = 0;
+InvalidCrew(invalidRange.Validate, "Attack needs a positive range");
+var health = new CrewHealthState(100);
+Check(health.ApplyDamage(25) && health.CurrentHp == 75 && health.IsAlive, "Crew HP takes normal damage");
+foreach (var badDamage in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+    Check(!health.ApplyDamage(badDamage) && health.CurrentHp == 75, "Reject invalid crew damage " + badDamage);
+Check(health.ApplyDamage(1000) && !health.IsAlive && health.CurrentHp == 0, "Lethal damage clamps crew HP to zero");
+Check(!health.ApplyDamage(10), "Dead crew cannot take further damage");
+var replacement = new CharacterStats { id = "new-ally", displayName = "New Ally", maxHp = 80, moveSpeed = 3 };
+crewSetup.characters = crewSetup.characters.Append(replacement).ToArray();
+crewSetup.player.slots[4] = "new-ally";
+Check(crewSetup.GetTeam(TeamSide.Player)[4].id == "new-ally", "Additional character data can replace a formation slot");
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew

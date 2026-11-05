@@ -79,7 +79,8 @@ namespace KadokaShipBattler.Tests
             Assert.That(first.transform.position.x - firstStart.x, Is.EqualTo(0.4f).Within(0.001f));
             Assert.That(second.transform.position.x - secondStart.x, Is.EqualTo(0.28f).Within(0.001f));
             Assert.That(arena.PlayerController, Is.SameAs(second));
-            Assert.That(arena.Controls.CycleNext(), Is.True);
+            for (var remaining = 0; remaining < arena.PlayerCrew.Count - 1; remaining++)
+                Assert.That(arena.Controls.CycleNext(), Is.True);
             Assert.That(arena.PlayerController, Is.SameAs(first));
         }
 

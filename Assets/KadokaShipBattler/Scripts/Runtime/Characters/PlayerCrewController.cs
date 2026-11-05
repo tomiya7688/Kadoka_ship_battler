@@ -12,10 +12,10 @@ namespace KadokaShipBattler.Characters
         public Vector2 Facing { get; private set; } = Vector2.down;
         public bool IsDirectlyControlled { get; private set; }
         public TeamSide TeamSide => Crew.TeamSide;
-        public bool IsAvailable => this != null && isActiveAndEnabled && Crew.Definition != null;
+        public bool IsAvailable => this != null && isActiveAndEnabled && Crew.IsAlive;
         private CrewMember Crew => GetComponent<CrewMember>();
         private CrewAmmoInventory Inventory => GetComponent<CrewAmmoInventory>();
-        private bool CanAct => isActiveAndEnabled && (Arena == null || !Arena.IsFinished);
+        private bool CanAct => IsAvailable && (Arena == null || !Arena.IsFinished);
         public void SetDirectControl(bool directControl)
         {
             if (this == null) return;
@@ -37,7 +37,7 @@ namespace KadokaShipBattler.Characters
             if (!CanAct || Crew.Definition == null || deltaTime <= 0f) return;
             Face(input);
             var next = (Vector2)transform.position + Vector2.ClampMagnitude(input, 1f) * (Crew.Definition.MoveSpeed * deltaTime);
-            if (Arena == null || Arena.CanPlayerStand(next)) transform.position = new Vector3(next.x, next.y, 0f);
+            if (Arena == null || Arena.CanCrewStand(TeamSide, next)) transform.position = new Vector3(next.x, next.y, 0f);
         }
         public void Face(Vector2 direction)
         {
@@ -60,12 +60,19 @@ namespace KadokaShipBattler.Characters
         }
         public bool TryAttack()
         {
-            if (!CanAct) return false;
+            if (!CanAct || Crew.Definition.AttackMode == NormalAttackMode.None || !Crew.Can(CharacterCapability.Combat)) return false;
             Physics2D.SyncTransforms();
-            foreach (var collider in Physics2D.OverlapCircleAll(transform.position, 0.9f))
+            var colliders = Physics2D.OverlapCircleAll(transform.position, Crew.Definition.AttackRange);
+            System.Array.Sort(colliders, (a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
+            foreach (var collider in colliders)
             {
+                var offset = (Vector2)(collider.transform.position - transform.position);
+                if (Crew.Definition.AttackMode == NormalAttackMode.Ranged && offset.sqrMagnitude > 0.01f &&
+                    Vector2.Dot(offset.normalized, Facing) < 0.5f) continue;
                 var core = collider.GetComponent<ShipCore>();
                 if (core != null && core.TryAttack(Crew)) return true;
+                var target = collider.GetComponent<CrewMember>();
+                if (target != null && Crew.TryAttack(target)) return true;
             }
             return false;
         }
