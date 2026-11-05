@@ -86,7 +86,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(defender.MaxHp, Is.EqualTo(180));
             Assert.That(defender.ProjectileHardness, Is.EqualTo(5));
             foreach (var actor in arena.PlayerCrew)
-                Assert.That(actor.gameObject.AddComponent<UtilityAiAgent>().SelectAction(), Is.Not.EqualTo(AiActionType.Repair));
+                Assert.That(actor.GetComponent<UtilityAiAgent>().SelectAction(), Is.Not.EqualTo(AiActionType.Repair));
         }
 
         [Test]

@@ -114,7 +114,7 @@ namespace KadokaShipBattler.Core
             var seed = System.Environment.TickCount;
             PlayerAmmo = CreateAmmoSpawner(TeamSide.Player, AmmoSetup.player, ammoDefinitions, seed);
             EnemyAmmo = CreateAmmoSpawner(TeamSide.Enemy, AmmoSetup.enemy, ammoDefinitions, seed ^ 0x57d32);
-            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON; vision sensors active; room navigation active.");
+            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON; vision sensors active; room navigation active; utility evaluation active.");
         }
 
         private AmmoDeckSpawner CreateAmmoSpawner(TeamSide side, AmmoDeckData data,

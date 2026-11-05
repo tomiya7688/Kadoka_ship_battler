@@ -13,6 +13,8 @@
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CharacterCapability.cs" Link="CharacterCapability.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/AmmoDeckModel.cs" Link="AmmoDeckModel.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/VisionModel.cs" Link="VisionModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/UtilityModel.cs" Link="UtilityModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/AiActionType.cs" Link="AiActionType.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Navigation/NavigationModel.cs" Link="NavigationModel.cs" />
     <None Include="../../Assets/KadokaShipBattler/Data/PrototypeNavigation.json" Link="PrototypeNavigation.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../Assets/KadokaShipBattler/Data/PrototypeCrew.json" Link="PrototypeCrew.json" CopyToOutputDirectory="PreserveNewest" />
