@@ -21,6 +21,7 @@ namespace KadokaShipBattler.AI
         private readonly Dictionary<int, bool> isHeavyByAmmoId = new();
         private readonly float startedAt;
         private float latestTime;
+        private float boardingUpdatedAt;
         private float boardingPressure;
         private int heavyAmmoCount;
 
@@ -29,7 +30,7 @@ namespace KadokaShipBattler.AI
         {
             // 戦闘の開始前の時刻を標本に混ぜません。
             if (!UtilityRules.Range(startedAt, 0, float.MaxValue)) throw new ArgumentOutOfRangeException(nameof(startedAt));
-            this.startedAt = latestTime = startedAt;
+            this.startedAt = latestTime = boardingUpdatedAt = startedAt;
         }
 
         /* { 処理: 自船体が砲撃を受けた時刻を記録します。前提: 古い記録は上限を超えた時に捨てます。 } */
@@ -64,9 +65,9 @@ namespace KadokaShipBattler.AI
         {
             // 圧力は観測が続く間だけ上がり、観測がなければ約10秒の時定数で下がります。
             if (intruderCount < 0) throw new ArgumentOutOfRangeException(nameof(intruderCount));
-            var previousTime = latestTime;
             RequireTime(now);
-            var elapsed = now - previousTime;
+            var elapsed = now - boardingUpdatedAt;
+            boardingUpdatedAt = now;
             var target = Math.Min(1f, intruderCount / 2f);
             var blend = 1f - (float)Math.Exp(-elapsed / BoardingTimeConstantSeconds);
             boardingPressure += (target - boardingPressure) * blend;
