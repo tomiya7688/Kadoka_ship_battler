@@ -102,6 +102,9 @@ namespace KadokaShipBattler.Core
             selectionMarker = Visual("Controlled Crew Marker", new Vector2(-5, 0.4f), new Vector2(0.2f, 0.1f), Color.white, 4);
             EnemyTactics = gameObject.AddComponent<EnemyTacticalDirector>();
             EnemyTactics.Initialize(this, enemyMembers);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            gameObject.AddComponent<BattleDebugOverlay>();
+#endif
             var ammoDefinitions = new Dictionary<string, AmmoDefinition>();
             foreach (var stats in AmmoSetup.ammo)
             {
@@ -232,7 +235,6 @@ namespace KadokaShipBattler.Core
             }
             GUI.Label(new Rect(25, 110, 730, 25), $"White marker: controlled crew. Yellow ammo: weight 2. Orange ammo: weight 3. Bridge: {(EnemyShip.IsHullBreached ? "OPEN" : "LOCKED")}");
             GUI.Label(new Rect(25, 135, 730, 25), $"Deck waiting: Player {PlayerAmmo.Deck.WaitingCount}/25   Enemy {EnemyAmmo.Deck.WaitingCount}/25   Ground ammo expires after 60s");
-            GUI.Label(new Rect(10, 205, 800, 30), $"Enemy tactic (debug): {EnemyTactics.Goal}");
             GUI.Label(new Rect(10, 185, 800, 30), IsFinished ? (PlayerWon ? "VICTORY - enemy core destroyed" : "DEFEAT - player core destroyed") :
                 "Yellow: ammo   Gray: cannon   Purple: core. Breach the hull, cross the bridge, then attack the core.");
         }
