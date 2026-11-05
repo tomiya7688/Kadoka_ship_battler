@@ -313,6 +313,8 @@ namespace KadokaShipBattler.Tests
             pickup.transform.position = new Vector3(3, 0, 0);
             pickup.GetComponent<Collider2D>().enabled = true;
             var wall = Wall(new Vector2(2.5f, 0), new Vector2(0.1f, 4));
+            // 味方の補給役が弾を拾って装填すると、砲手の視界試験にならないため、他の4人を除外します。
+            for (var slot = 1; slot < arena.EnemyCrew.Count; slot++) arena.EnemyCrew[slot].gameObject.SetActive(false);
             arena.EnemyActionsEnabled = true;
             var inventory = actor.GetComponent<CrewAmmoInventory>();
             for (var step = 0; step < 10; step++) arena.TickEnemy(0.1f);
