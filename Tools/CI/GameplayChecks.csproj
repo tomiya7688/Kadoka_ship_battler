@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/BattleModel.cs" Link="BattleModel.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/TeamSide.cs" Link="TeamSide.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/CrewControlState.cs" Link="CrewControlState.cs" />
   </ItemGroup>
 </Project>

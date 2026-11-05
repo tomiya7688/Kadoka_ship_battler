@@ -41,5 +41,40 @@ Check(!cannon.FireAt(player, enemy) && ReferenceEquals(cannon.LoadedAmmo, ammo),
 var breachedOwner = new ShipBattleState(TeamSide.Player, 10, 30);
 breachedOwner.ApplyHullDamage(10);
 Check(cannon.FireAt(breachedOwner, new ShipBattleState(TeamSide.Enemy, 100, 30)), "Breached owner can still fire");
+var control = new CrewControlState();
+var leader = new TestCrew(TeamSide.Player);
+var ally = new TestCrew(TeamSide.Player);
+Check(!control.Register(null) && !control.CycleNext(), "Empty control roster is safe");
+Check(!control.Register(new TestCrew(TeamSide.Enemy)), "Enemy cannot enter player control roster");
+Check(control.Register(leader) && leader.DirectControl && ReferenceEquals(control.Current, leader), "First ally receives direct control");
+Check(!control.Register(leader), "Duplicate crew rejected");
+Check(control.Register(ally) && !ally.DirectControl && leader.DirectControl, "Second ally starts under AI");
+Check(!control.TrySwitch(new TestCrew(TeamSide.Player)) && !control.TrySwitch(null), "Unregistered and null targets rejected");
+Check(!control.TrySwitch(leader), "Same-target switch is a no-op");
+Check(control.CycleNext() && ally.DirectControl && !leader.DirectControl, "Switch transfers control to exactly one crew");
+Check(leader.AiResumes == 1, "Released leader immediately resumes AI");
+Check(control.CycleNext() && leader.DirectControl && !ally.DirectControl, "Cycling wraps to leader");
+ally.IsAvailable = false;
+Check(!control.TrySwitch(ally) && !control.CycleNext(), "Unavailable ally cannot receive control");
+leader.IsAvailable = false;
+control.EnsureAvailableSelection();
+Check(control.Current == null && !leader.DirectControl, "No available crew releases control safely");
+ally.IsAvailable = true;
+control.EnsureAvailableSelection();
+Check(ReferenceEquals(control.Current, ally) && ally.DirectControl, "Available ally recovers selection");
+control.ReleaseAll();
+Check(control.Current == null && control.Members.Count == 0 && !ally.DirectControl, "Teardown clears roster and control");
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage) : IAmmo;
+sealed class TestCrew(TeamSide side) : IControlledCrew
+{
+    public TeamSide TeamSide => side;
+    public bool IsAvailable { get; set; } = true;
+    public bool DirectControl { get; private set; }
+    public int AiResumes { get; private set; }
+    public void SetDirectControl(bool value)
+    {
+        if (DirectControl && !value) AiResumes++;
+        DirectControl = value;
+    }
+}
