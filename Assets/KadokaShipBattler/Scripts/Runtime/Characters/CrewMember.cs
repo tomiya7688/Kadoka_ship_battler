@@ -11,6 +11,12 @@ namespace KadokaShipBattler.Characters
         public CharacterDefinition Definition => definition;
         public TeamSide TeamSide => teamSide;
 
+        public void Initialize(CharacterDefinition character, TeamSide side)
+        {
+            definition = character;
+            teamSide = side;
+        }
+
         public bool Can(CharacterCapability capability)
         {
             return definition != null && definition.HasCapability(capability);
