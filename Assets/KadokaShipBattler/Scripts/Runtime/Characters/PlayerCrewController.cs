@@ -58,7 +58,13 @@ namespace KadokaShipBattler.Characters
             }
             return false;
         }
-        public bool TryAttack()
+        public bool TryAttack() => TryAttackTarget(null);
+        public bool TryAttackVisible(VisionObservation observation)
+        {
+            var sensor = GetComponent<VisionSensor>();
+            return observation != null && sensor != null && sensor.CanStillSee(observation) && TryAttackTarget(observation.TargetId);
+        }
+        private bool TryAttackTarget(int? observedTargetId)
         {
             if (!CanAct || Crew.Definition.AttackMode == NormalAttackMode.None || !Crew.Can(CharacterCapability.Combat)) return false;
             Physics2D.SyncTransforms();
@@ -69,10 +75,10 @@ namespace KadokaShipBattler.Characters
                 var offset = (Vector2)(collider.transform.position - transform.position);
                 if (Crew.Definition.AttackMode == NormalAttackMode.Ranged && offset.sqrMagnitude > 0.01f &&
                     Vector2.Dot(offset.normalized, Facing) < 0.5f) continue;
-                var core = collider.GetComponent<ShipCore>();
-                if (core != null && core.TryAttack(Crew)) return true;
-                var target = collider.GetComponent<CrewMember>();
-                if (target != null && Crew.TryAttack(target)) return true;
+                var core = collider.GetComponentInParent<ShipCore>();
+                if (core != null && (!observedTargetId.HasValue || core.GetInstanceID() == observedTargetId.Value) && core.TryAttack(Crew)) return true;
+                var target = collider.GetComponentInParent<CrewMember>();
+                if (target != null && (!observedTargetId.HasValue || target.GetInstanceID() == observedTargetId.Value) && Crew.TryAttack(target)) return true;
             }
             return false;
         }

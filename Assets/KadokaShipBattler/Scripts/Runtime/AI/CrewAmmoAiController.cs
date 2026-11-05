@@ -4,12 +4,13 @@ using UnityEngine;
 
 namespace KadokaShipBattler.AI
 {
-    [RequireComponent(typeof(PlayerCrewController))]
+    [RequireComponent(typeof(PlayerCrewController), typeof(VisionSensor))]
     public sealed class CrewAmmoAiController : MonoBehaviour
     {
         private PlayerCrewController actor;
         private float interactionTimer;
         private float searchTimer;
+        private VisionObservation visibleObservation;
         public bool IsRunning { get; private set; }
         public Vector2 ObservationOrigin { get; private set; }
         public Vector2 ObservationFacing { get; private set; }
@@ -21,6 +22,7 @@ namespace KadokaShipBattler.AI
         {
             IsRunning = false;
             VisibleAmmo = null;
+            visibleObservation = null;
             CurrentAction = AiActionType.Idle;
         }
         public void ResumeFromCurrentState()
@@ -34,23 +36,25 @@ namespace KadokaShipBattler.AI
         }
         private void Update() => Tick(Time.deltaTime);
 
-        // Perception is deliberately small: nearby ammo in a forward cone. Cannon location is known.
+        // Perception comes from the sensor. Own cannon position is known map information.
         private void Observe()
         {
-            ObservationOrigin = transform.position;
-            ObservationFacing = actor.Facing;
+            var sensor = GetComponent<VisionSensor>();
+            sensor.Scan();
+            ObservationOrigin = sensor.ObservationOrigin;
+            ObservationFacing = sensor.FacingDirection;
             VisibleAmmo = null;
+            visibleObservation = null;
             var bestDistance = float.PositiveInfinity;
-            Physics2D.SyncTransforms();
-            foreach (var collider in Physics2D.OverlapCircleAll(ObservationOrigin, 6f))
+            foreach (var observation in sensor.Observations)
             {
-                var pickup = collider.GetComponent<AmmoPickup>();
+                var pickup = sensor.GetVisibleAmmo(observation);
                 if (pickup == null || pickup.IsConsumed || !GetComponent<CrewAmmoInventory>().CanPickup(pickup.Round)) continue;
-                var offset = (Vector2)pickup.transform.position - ObservationOrigin;
-                if (offset.sqrMagnitude > 0.01f && Vector2.Dot(offset.normalized, ObservationFacing) < 0.5f) continue;
+                var offset = new Vector2(observation.X, observation.Y) - ObservationOrigin;
                 if (offset.sqrMagnitude >= bestDistance) continue;
                 bestDistance = offset.sqrMagnitude;
                 VisibleAmmo = pickup;
+                visibleObservation = observation;
             }
         }
         private void ChooseAction()
@@ -78,7 +82,7 @@ namespace KadokaShipBattler.AI
                 }
                 return;
             }
-            var target = CurrentAction == AiActionType.CarryAmmo ? VisibleAmmo.transform.position : actor.Arena.PlayerCannon.transform.position;
+            var target = CurrentAction == AiActionType.CarryAmmo ? new Vector3(visibleObservation.X, visibleObservation.Y, 0) : actor.Arena.PlayerCannon.transform.position;
             // Fixture-specific bridge waypoints; room/door navigation remains a separate system.
             var routeThroughBridge = target.x < -1f && transform.position.x > -1f;
             if (routeThroughBridge)
@@ -93,7 +97,9 @@ namespace KadokaShipBattler.AI
             if (routeThroughBridge) return;
             interactionTimer -= deltaTime;
             if (interactionTimer > 0) return;
-            actor.TryInteract();
+            if (CurrentAction == AiActionType.CarryAmmo)
+                GetComponent<VisionSensor>().TryPickupVisible(visibleObservation, GetComponent<CrewAmmoInventory>());
+            else actor.Arena.PlayerCannon.TryInteract(GetComponent<CrewMember>(), GetComponent<CrewAmmoInventory>());
             interactionTimer = 0.35f;
         }
     }

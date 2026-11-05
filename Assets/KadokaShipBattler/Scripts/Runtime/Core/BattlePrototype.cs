@@ -38,7 +38,6 @@ namespace KadokaShipBattler.Core
         private CrewMember enemyCrew;
         private CrewAmmoInventory enemyInventory;
         private CannonController enemyCannon;
-        private ShipCore playerCore;
         private float enemyTimer;
         private GameObject selectionMarker;
 
@@ -71,7 +70,7 @@ namespace KadokaShipBattler.Core
             Visual("Bridge", Vector2.zero, new Vector2(2, 1.3f), new Color(0.45f, 0.4f, 0.2f), 0);
             PlayerShip = CreateShip(TeamSide.Player, new Vector2(-4, 0), new Color(0.08f, 0.22f, 0.3f));
             EnemyShip = CreateShip(TeamSide.Enemy, new Vector2(4, 0), new Color(0.3f, 0.12f, 0.16f));
-            playerCore = CreateCore(PlayerShip, new Vector2(-6, 1.5f));
+            CreateCore(PlayerShip, new Vector2(-6, 1.5f));
             EnemyCore = CreateCore(EnemyShip, new Vector2(6, 1.5f));
             PlayerCannon = CreateCannon(PlayerShip, EnemyShip, new Vector2(-2, 0));
             enemyCannon = CreateCannon(EnemyShip, PlayerShip, new Vector2(2, 0));
@@ -102,7 +101,7 @@ namespace KadokaShipBattler.Core
             var seed = System.Environment.TickCount;
             PlayerAmmo = CreateAmmoSpawner(TeamSide.Player, AmmoSetup.player, ammoDefinitions, seed);
             EnemyAmmo = CreateAmmoSpawner(TeamSide.Enemy, AmmoSetup.enemy, ammoDefinitions, seed ^ 0x57d32);
-            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON.");
+            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON; vision sensors active.");
         }
 
         private AmmoDeckSpawner CreateAmmoSpawner(TeamSide side, AmmoDeckData data,
@@ -162,7 +161,11 @@ namespace KadokaShipBattler.Core
         private void Update()
         {
             if (Input.GetKeyDown(KeyCode.R)) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-            if (IsFinished || !EnemyActionsEnabled) return;
+            TickEnemy(Time.deltaTime);
+        }
+        public void TickEnemy(float deltaTime)
+        {
+            if (IsFinished || !EnemyActionsEnabled || deltaTime <= 0 || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
             if (enemyCrew == null || !enemyCrew.IsAlive)
             {
                 enemyCrew = enemyMembers.Find(member => member.IsAlive && member.Can(CharacterCapability.Combat) && member.Can(CharacterCapability.OperateCannon) && member.Can(CharacterCapability.CarryAmmo));
@@ -171,22 +174,47 @@ namespace KadokaShipBattler.Core
             }
             if (PlayerShip.IsHullBreached)
             {
+                // Fixed prototype boarding route; attacks themselves are gated by the guard's current observations.
                 var position = enemyCrew.transform.position;
-                var destination = position.x > -5.5f ? new Vector3(-6, 0, 0) : playerCore.transform.position;
-                enemyCrew.transform.position = Vector3.MoveTowards(position, destination, 2f * Time.deltaTime);
-                if (Vector3.Distance(enemyCrew.transform.position, playerCore.transform.position) < 0.6f)
-                {
-                    enemyTimer += Time.deltaTime;
-                    if (enemyTimer >= 1f) { playerCore.TryAttack(enemyCrew); enemyTimer = 0; }
-                }
+                var destination = position.x > 1f && Mathf.Abs(position.y) > 0.05f ? new Vector3(position.x, 0, 0) :
+                    position.x > -5.5f ? new Vector3(-6, 0, 0) : new Vector3(-6, 1.5f, 0);
+                MoveEnemyToward(destination, deltaTime);
                 return;
             }
-            enemyTimer += Time.deltaTime;
-            if (enemyTimer < 10f) return;
-            enemyTimer = 0;
-            if (!enemyInventory.HasAmmo && !EnemyAmmo.TrySupply(enemyInventory)) return;
-            enemyCannon.TryLoadFrom(enemyInventory);
-            enemyCannon.FireAt(PlayerShip);
+            enemyTimer += deltaTime;
+            if (enemyCannon.IsLoaded || enemyInventory.HasAmmo)
+            {
+                if (MoveEnemyToward(enemyCannon.transform.position, deltaTime)) return;
+                if (!enemyCannon.IsLoaded) enemyCannon.TryLoadFrom(enemyInventory);
+                if (enemyTimer >= 10f && enemyCannon.FireAt(PlayerShip)) enemyTimer = 0;
+                return;
+            }
+            var sensor = enemyCrew.GetComponent<VisionSensor>();
+            sensor.Scan();
+            VisionObservation nearest = null;
+            var nearestDistance = float.PositiveInfinity;
+            foreach (var observation in sensor.Observations)
+            {
+                if (observation.Kind != ObservedTargetKind.Ammo || observation.TeamSide != TeamSide.Enemy) continue;
+                var pickup = sensor.GetVisibleAmmo(observation);
+                if (pickup == null || !enemyInventory.CanPickup(pickup.Round)) continue;
+                var distance = ((Vector2)enemyCrew.transform.position - new Vector2(observation.X, observation.Y)).sqrMagnitude;
+                if (distance >= nearestDistance) continue;
+                nearest = observation;
+                nearestDistance = distance;
+            }
+            if (nearest == null) return;
+            if (!MoveEnemyToward(new Vector3(nearest.X, nearest.Y, 0), deltaTime))
+                sensor.TryPickupVisible(nearest, enemyInventory);
+        }
+
+        private bool MoveEnemyToward(Vector3 destination, float deltaTime)
+        {
+            var offset = (Vector2)(destination - enemyCrew.transform.position);
+            if (offset.magnitude <= 0.15f) return false;
+            enemyCrew.GetComponent<PlayerCrewController>().Move(offset.normalized,
+                Mathf.Min(deltaTime, offset.magnitude / Mathf.Max(0.01f, enemyCrew.Definition.MoveSpeed)));
+            return true;
         }
 
         private ShipController CreateShip(TeamSide side, Vector2 position, Color color)
@@ -215,6 +243,7 @@ namespace KadokaShipBattler.Core
             crew.Initialize(definition, side);
             crew.gameObject.AddComponent<CrewAmmoInventory>();
             crew.gameObject.AddComponent<PlayerCrewController>().Arena = this;
+            crew.gameObject.AddComponent<VisionSensor>();
             return crew;
         }
         private GameObject Visual(string name, Vector2 position, Vector2 size, Color color, int order)
