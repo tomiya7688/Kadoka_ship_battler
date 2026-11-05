@@ -12,8 +12,9 @@ namespace KadokaShipBattler.Ships
         [SerializeField] private ShipController targetShip;
         private readonly CannonState state = new CannonState();
 
-        public AmmoDefinition LoadedAmmo => state.LoadedAmmo as AmmoDefinition;
-        public bool IsLoaded => LoadedAmmo != null;
+        public IAmmo LoadedRound => state.LoadedAmmo;
+        public AmmoDefinition LoadedAmmo => (state.LoadedAmmo is AmmoDeckRound round ? round.Definition : state.LoadedAmmo) as AmmoDefinition;
+        public bool IsLoaded => state.LoadedAmmo != null;
         public ShipController OwnerShip => ownerShip != null ? ownerShip : ownerShip = GetComponentInParent<ShipController>();
 
         private void Awake()
@@ -46,5 +47,6 @@ namespace KadokaShipBattler.Ships
                 return false;
             return IsLoaded ? crew.Can(CharacterCapability.OperateCannon) && FireAt(targetShip) : TryLoadFrom(inventory);
         }
+        private void OnDestroy() => state.Clear();
     }
 }

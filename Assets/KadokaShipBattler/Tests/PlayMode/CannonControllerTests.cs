@@ -96,7 +96,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(arena.EnemyCore.TryAttack(player.GetComponent<CrewMember>()), Is.False);
             for (var shot = 0; shot < 4; shot++)
             {
-                var pickup = Object.FindFirstObjectByType<AmmoPickup>();
+                var pickup = arena.PlayerAmmo.Pickups[0];
                 player.transform.position = pickup.transform.position;
                 Assert.That(player.TryInteract(), Is.True, "Pickup round " + shot);
                 player.transform.position = arena.PlayerCannon.transform.position;
