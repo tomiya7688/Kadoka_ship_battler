@@ -39,6 +39,11 @@ jobs:
                   json.loads(asset.read_text(encoding='utf-8-sig'))
           scene = 'Assets/KadokaShipBattler/Scenes/BattlePrototype.unity'
           assert Path(scene).exists()
+          # Keep shared instructions in the repository and the personal checklist ignored.
+          assert Path('AGENTS.md').is_file()
+          assert Path('コーディング規約.md').is_file()
+          assert '/レビュー基準.md' in Path('.gitignore').read_text(encoding='utf-8-sig').splitlines()
+          assert not Path('レビュー基準.md').exists(), 'Personal review criteria must remain local.'
           assert scene in Path('ProjectSettings/EditorBuildSettings.asset').read_text(encoding='utf-8-sig')
           scene_text = Path(scene).read_text(encoding='utf-8-sig')
           for field, filename in [('crewSetup', 'PrototypeCrew.json'), ('ammoSetup', 'PrototypeAmmo.json'), ('navigationSetup', 'PrototypeNavigation.json')]:

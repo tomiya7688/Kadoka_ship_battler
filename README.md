@@ -10,6 +10,10 @@
 
 Unity Hub からリポジトリのルートディレクトリを開いてください。
 
+## Development standards
+
+変更前に[コーディング規約](コーディング規約.md)を確認してください。作業エージェントは[AGENTS.md](AGENTS.md)の手順に従ってください。個人用のレビュー基準はルートの`レビュー基準.md`に置けます。このファイルはGitでは追跡されません。
+
 ## Playable prototype
 
 `Assets/KadokaShipBattler/Scenes/BattlePrototype.unity` を開いて Play を押してください。
