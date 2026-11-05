@@ -30,6 +30,8 @@ namespace KadokaShipBattler.Tests
             arena.AllyActionsEnabled = false;
             arena.PlayerAmmo.SpawningEnabled = false;
             arena.EnemyAmmo.SpawningEnabled = false;
+            // These fixtures isolate the sensor; navigation tests cover the scene's room walls.
+            foreach (var wall in Object.FindObjectsByType<VisionBlocker>(FindObjectsSortMode.None)) wall.GetComponent<Collider2D>().enabled = false;
             foreach (var pickup in Object.FindObjectsByType<AmmoPickup>(FindObjectsSortMode.None)) pickup.GetComponent<Collider2D>().enabled = false;
             foreach (var crew in Object.FindObjectsByType<CrewMember>(FindObjectsSortMode.None)) crew.GetComponent<Collider2D>().enabled = false;
             foreach (var core in Object.FindObjectsByType<ShipCore>(FindObjectsSortMode.None)) core.GetComponent<Collider2D>().enabled = false;

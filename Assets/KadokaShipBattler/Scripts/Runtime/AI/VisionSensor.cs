@@ -100,6 +100,20 @@ namespace KadokaShipBattler.AI
             var origin = (Vector2)transform.position;
             var facing = actor.Facing;
             if (!cone.Contains(origin.x, origin.y, facing.x, facing.y, point.x, point.y)) return false;
+            return ClearLineOfSight(point);
+        }
+        // Direct actions use wall occlusion without changing their own range or facing rules.
+        public bool HasClearLineOfSight(Vector2 point)
+        {
+            using (new TriggerQueryScope(true))
+            {
+                Physics2D.SyncTransforms();
+                return ClearLineOfSight(point);
+            }
+        }
+        private bool ClearLineOfSight(Vector2 point)
+        {
+            var origin = (Vector2)transform.position;
             var offset = point - origin;
             // Explicit filters keep perception independent of global trigger / start-inside query settings.
             var overlaps = new List<Collider2D>();

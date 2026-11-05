@@ -3,6 +3,7 @@ using KadokaShipBattler.AI;
 using KadokaShipBattler.Ammo;
 using KadokaShipBattler.Characters;
 using KadokaShipBattler.Ships;
+using KadokaShipBattler.Navigation;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -13,6 +14,8 @@ namespace KadokaShipBattler.Core
     {
         [SerializeField] private TextAsset crewSetup;
         [SerializeField] private TextAsset ammoSetup;
+        [SerializeField] private TextAsset navigationSetup;
+        public BattleNavigation Navigation { get; private set; }
         public BattleCrewDefinition CrewSetup { get; private set; }
         public BattleAmmoDefinition AmmoSetup { get; private set; }
         public AmmoDeckSpawner PlayerAmmo { get; private set; }
@@ -51,6 +54,15 @@ namespace KadokaShipBattler.Core
             AmmoSetup = JsonUtility.FromJson<BattleAmmoDefinition>(ammoSetup.text);
             if (AmmoSetup == null) throw new System.InvalidOperationException("Invalid ammo deck JSON.");
             AmmoSetup.Validate();
+            if (navigationSetup == null) throw new System.InvalidOperationException("Assign the ship map JSON to BattlePrototype.");
+            var maps = JsonUtility.FromJson<BattleMapData>(navigationSetup.text);
+            maps.Validate();
+            Navigation = new BattleNavigation(maps, AmmoSetup.playerLayout, AmmoSetup.enemyLayout);
+            foreach (var type in maps.types)
+            {
+                var definition = ScriptableObject.CreateInstance<ShipMapDefinition>();
+                definition.Initialize(type); definitions.Add(definition);
+            }
             foreach (var stats in CrewSetup.characters)
             {
                 var definition = ScriptableObject.CreateInstance<CharacterDefinition>();
@@ -70,13 +82,14 @@ namespace KadokaShipBattler.Core
             Visual("Bridge", Vector2.zero, new Vector2(2, 1.3f), new Color(0.45f, 0.4f, 0.2f), 0);
             PlayerShip = CreateShip(TeamSide.Player, new Vector2(-4, 0), new Color(0.08f, 0.22f, 0.3f));
             EnemyShip = CreateShip(TeamSide.Enemy, new Vector2(4, 0), new Color(0.3f, 0.12f, 0.16f));
+            gameObject.AddComponent<NavigationMapView>().Initialize(Navigation, square);
             CreateCore(PlayerShip, new Vector2(-6, 1.5f));
             EnemyCore = CreateCore(EnemyShip, new Vector2(6, 1.5f));
             PlayerCannon = CreateCannon(PlayerShip, EnemyShip, new Vector2(-2, 0));
             enemyCannon = CreateCannon(EnemyShip, PlayerShip, new Vector2(2, 0));
             Controls = gameObject.AddComponent<CrewControlDirector>();
             var playerPositions = new[] { new Vector2(-5, 0), new Vector2(-4.5f, 1), new Vector2(-6, 0.5f), new Vector2(-3.5f, 1.7f), new Vector2(-6, -0.5f) };
-            var enemyPositions = new[] { new Vector2(2, 0), new Vector2(5, -1.5f), new Vector2(4, 1.7f), new Vector2(3, -1.7f), new Vector2(6, -1.4f) };
+            var enemyPositions = new[] { new Vector2(2, 0), new Vector2(5, -1.5f), new Vector2(4.6f, 1), new Vector2(3, -1.7f), new Vector2(6, -1.4f) };
             var playerFormation = CrewSetup.GetTeam(TeamSide.Player);
             var enemyFormation = CrewSetup.GetTeam(TeamSide.Enemy);
             for (var slot = 0; slot < BattleCrewDefinition.TeamSize; slot++)
@@ -101,7 +114,7 @@ namespace KadokaShipBattler.Core
             var seed = System.Environment.TickCount;
             PlayerAmmo = CreateAmmoSpawner(TeamSide.Player, AmmoSetup.player, ammoDefinitions, seed);
             EnemyAmmo = CreateAmmoSpawner(TeamSide.Enemy, AmmoSetup.enemy, ammoDefinitions, seed ^ 0x57d32);
-            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON; vision sensors active.");
+            Debug.Log("BattlePrototype ready: five player crew and five enemy crew; 25-slot ammo decks initialized from JSON; vision sensors active; room navigation active.");
         }
 
         private AmmoDeckSpawner CreateAmmoSpawner(TeamSide side, AmmoDeckData data,
@@ -147,16 +160,12 @@ namespace KadokaShipBattler.Core
         public bool CanPlayerStand(Vector2 point) => CanCrewStand(TeamSide.Player, point);
         public bool CanCrewStand(TeamSide side, Vector2 point)
         {
-            if (point.y < -2.3f || point.y > 2.3f || point.x < -6.8f || point.x > 6.8f) return false;
-            if (side == TeamSide.Enemy)
-            {
-                if (point.x >= 1f) return true;
-                return PlayerShip.IsHullBreached && (point.x <= -1f || Mathf.Abs(point.y) <= 0.5f);
-            }
-            if (point.x <= -1f) return true;
-            if (!EnemyShip.IsHullBreached) return false;
-            return point.x >= 1f || Mathf.Abs(point.y) <= 0.5f;
+            return Navigation.CanStand(new NavPoint(point.x, point.y), TraversalAbilities.None, side, PlayerShip.IsHullBreached, EnemyShip.IsHullBreached);
         }
+        public bool CanCrewMove(TeamSide side, Vector2 from, Vector2 to, CharacterDefinition definition) =>
+            Navigation.CanTraverse(new NavPoint(from.x, from.y), new NavPoint(to.x, to.y),
+                (definition.CanFly ? TraversalAbilities.Fly : 0) | (definition.CanPhase ? TraversalAbilities.Phase : 0),
+                side, PlayerShip.IsHullBreached, EnemyShip.IsHullBreached);
 
         private void Update()
         {
@@ -174,11 +183,8 @@ namespace KadokaShipBattler.Core
             }
             if (PlayerShip.IsHullBreached)
             {
-                // Fixed prototype boarding route; attacks themselves are gated by the guard's current observations.
-                var position = enemyCrew.transform.position;
-                var destination = position.x > 1f && Mathf.Abs(position.y) > 0.05f ? new Vector3(position.x, 0, 0) :
-                    position.x > -5.5f ? new Vector3(-6, 0, 0) : new Vector3(-6, 1.5f, 0);
-                MoveEnemyToward(destination, deltaTime);
+                // The prototype core objective is fixed; guards attack only observed targets.
+                MoveEnemyToward(new Vector3(-6, 1.5f, 0), deltaTime);
                 return;
             }
             enemyTimer += deltaTime;
@@ -210,11 +216,7 @@ namespace KadokaShipBattler.Core
 
         private bool MoveEnemyToward(Vector3 destination, float deltaTime)
         {
-            var offset = (Vector2)(destination - enemyCrew.transform.position);
-            if (offset.magnitude <= 0.15f) return false;
-            enemyCrew.GetComponent<PlayerCrewController>().Move(offset.normalized,
-                Mathf.Min(deltaTime, offset.magnitude / Mathf.Max(0.01f, enemyCrew.Definition.MoveSpeed)));
-            return true;
+            return enemyCrew.GetComponent<NavigationAgent>().MoveTo(destination, deltaTime) != NavigationStatus.Arrived;
         }
 
         private ShipController CreateShip(TeamSide side, Vector2 position, Color color)
@@ -243,6 +245,7 @@ namespace KadokaShipBattler.Core
             crew.Initialize(definition, side);
             crew.gameObject.AddComponent<CrewAmmoInventory>();
             crew.gameObject.AddComponent<PlayerCrewController>().Arena = this;
+            crew.gameObject.AddComponent<NavigationAgent>();
             crew.gameObject.AddComponent<VisionSensor>();
             return crew;
         }

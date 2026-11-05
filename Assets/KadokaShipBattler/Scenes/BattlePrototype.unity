@@ -44,6 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3697b6e3d73c45d084c7f26e27574ebd, type: 3}
   m_Name:
   ammoSetup: {fileID: 4900000, guid: 3e5ddcdcfbc247e097992aacdf8a470b, type: 3}
+  navigationSetup: {fileID: 4900000, guid: 266cdc220c6947739ee72cc952c37caf, type: 3}
   crewSetup: {fileID: 4900000, guid: 741ba53612c64ce6a9e2d8238190db95, type: 3}
   m_EditorClassIdentifier:
 --- !u!1660057539 &9223372036854775807

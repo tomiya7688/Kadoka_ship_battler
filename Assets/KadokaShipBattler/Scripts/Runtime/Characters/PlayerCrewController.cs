@@ -2,6 +2,7 @@ using KadokaShipBattler.Ammo;
 using KadokaShipBattler.AI;
 using KadokaShipBattler.Core;
 using KadokaShipBattler.Ships;
+using KadokaShipBattler.Navigation;
 using UnityEngine;
 namespace KadokaShipBattler.Characters
 {
@@ -20,6 +21,7 @@ namespace KadokaShipBattler.Characters
         {
             if (this == null) return;
             IsDirectlyControlled = directControl;
+            GetComponent<NavigationAgent>()?.Cancel();
             var ai = GetComponent<CrewAmmoAiController>();
             if (ai == null) return;
             if (directControl || !IsAvailable) ai.Suspend();
@@ -34,10 +36,10 @@ namespace KadokaShipBattler.Characters
         }
         public void Move(Vector2 input, float deltaTime)
         {
-            if (!CanAct || Crew.Definition == null || deltaTime <= 0f) return;
+            if (!CanAct || Crew.Definition == null || deltaTime <= 0f || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
             Face(input);
             var next = (Vector2)transform.position + Vector2.ClampMagnitude(input, 1f) * (Crew.Definition.MoveSpeed * deltaTime);
-            if (Arena == null || Arena.CanCrewStand(TeamSide, next)) transform.position = new Vector3(next.x, next.y, 0f);
+            if (Arena == null || Arena.CanCrewMove(TeamSide, transform.position, next, Crew.Definition)) transform.position = new Vector3(next.x, next.y, 0f);
         }
         public void Face(Vector2 direction)
         {
@@ -51,6 +53,7 @@ namespace KadokaShipBattler.Characters
             System.Array.Sort(colliders, (a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
             foreach (var collider in colliders)
             {
+                if (Arena != null && !Arena.CanCrewMove(TeamSide, transform.position, collider.transform.position, Crew.Definition)) continue;
                 var cannon = collider.GetComponent<CannonController>();
                 if (cannon != null && cannon.TryInteract(Crew, Inventory)) return true;
                 var pickup = collider.GetComponent<AmmoPickup>();
@@ -73,6 +76,8 @@ namespace KadokaShipBattler.Characters
             foreach (var collider in colliders)
             {
                 var offset = (Vector2)(collider.transform.position - transform.position);
+                var sensor = GetComponent<VisionSensor>();
+                if (sensor != null && !sensor.HasClearLineOfSight(collider.transform.position)) continue;
                 if (Crew.Definition.AttackMode == NormalAttackMode.Ranged && offset.sqrMagnitude > 0.01f &&
                     Vector2.Dot(offset.normalized, Facing) < 0.5f) continue;
                 var core = collider.GetComponentInParent<ShipCore>();
