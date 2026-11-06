@@ -164,10 +164,16 @@ namespace KadokaShipBattler.Core
         {
             return Navigation.CanStand(new NavPoint(point.x, point.y), TraversalAbilities.None, side, PlayerShip.IsHullBreached, EnemyShip.IsHullBreached);
         }
-        public bool CanCrewMove(TeamSide side, Vector2 from, Vector2 to, CharacterDefinition definition) =>
+        /* { 処理: 指定陣営の船員から見て、プレイヤー船の部屋が開いているか返します。前提: 船体が破られているか、敵船員が乗り込み済みなら開いています。 } */
+        public bool IsPlayerShipOpenTo(TeamSide side, bool boarded) => PlayerShip.IsHullBreached || (boarded && side == TeamSide.Enemy);
+
+        /* { 処理: 指定陣営の船員から見て、敵船の部屋が開いているか返します。前提: 船体が破られているか、プレイヤー側が乗り込み済みなら開いています。 } */
+        public bool IsEnemyShipOpenTo(TeamSide side, bool boarded) => EnemyShip.IsHullBreached || (boarded && side == TeamSide.Player);
+
+        public bool CanCrewMove(TeamSide side, Vector2 from, Vector2 to, CharacterDefinition definition, bool boarded = false) =>
             Navigation.CanTraverse(new NavPoint(from.x, from.y), new NavPoint(to.x, to.y),
                 (definition.CanFly ? TraversalAbilities.Fly : 0) | (definition.CanPhase ? TraversalAbilities.Phase : 0),
-                side, PlayerShip.IsHullBreached, EnemyShip.IsHullBreached);
+                side, IsPlayerShipOpenTo(side, boarded), IsEnemyShipOpenTo(side, boarded));
 
         private void Update()
         {

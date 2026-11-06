@@ -65,7 +65,12 @@ namespace KadokaShipBattler.Characters
         private void Land()
         {
             Flying.Remove(this);
-            if (controller != null) controller.enabled = true;
+            // 着地した船員は、相手船の船体が無傷でもその部屋を移動できます。
+            if (controller != null)
+            {
+                controller.HasBoarded = true;
+                controller.enabled = true;
+            }
             enabled = false;
         }
 

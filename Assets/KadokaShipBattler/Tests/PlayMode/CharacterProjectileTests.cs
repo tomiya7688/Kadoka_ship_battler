@@ -92,6 +92,8 @@ namespace KadokaShipBattler.Tests
             Assert.AreEqual(ProjectileFlightStatus.Landed, projectile.Model.Status);
             Assert.IsTrue(passenger.IsAlive);
             Assert.IsTrue(passenger.GetComponent<PlayerCrewController>().enabled);
+            // 着地した船員は、船体が無傷の敵船でも移動できる乗り込み済みとして扱います。
+            Assert.IsTrue(passenger.GetComponent<PlayerCrewController>().HasBoarded);
             Assert.IsTrue(enemy.ContainsDeckPoint(passenger.transform.position) || Vector2.Distance(passenger.transform.position, enemy.transform.position) < 0.01f);
         }
 

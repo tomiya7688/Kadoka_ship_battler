@@ -34,11 +34,13 @@ namespace KadokaShipBattler.Navigation
             { Cancel(); return Status; }
             var stats = GetComponent<CrewMember>().Definition;
             var flags = (stats.CanFly ? TraversalAbilities.Fly : 0) | (stats.CanPhase ? TraversalAbilities.Phase : 0);
+            var playerOpen = arena.IsPlayerShipOpenTo(actor.TeamSide, actor.HasBoarded);
+            var enemyOpen = arena.IsEnemyShipOpenTo(actor.TeamSide, actor.HasBoarded);
             if (path == null || destination != goal || revision != arena.Navigation.Revision || abilities != flags ||
-                playerBreached != arena.PlayerShip.IsHullBreached || enemyBreached != arena.EnemyShip.IsHullBreached)
+                playerBreached != playerOpen || enemyBreached != enemyOpen)
             {
                 destination = goal; abilities = flags; revision = arena.Navigation.Revision;
-                playerBreached = arena.PlayerShip.IsHullBreached; enemyBreached = arena.EnemyShip.IsHullBreached;
+                playerBreached = playerOpen; enemyBreached = enemyOpen;
                 var position = (Vector2)transform.position;
                 if (!arena.Navigation.TryFindPath(new NavPoint(position.x, position.y), new NavPoint(goal.x, goal.y), flags,
                     actor.TeamSide, playerBreached, enemyBreached, out path))
