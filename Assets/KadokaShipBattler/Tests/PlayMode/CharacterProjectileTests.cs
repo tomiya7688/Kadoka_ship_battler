@@ -51,6 +51,46 @@ namespace KadokaShipBattler.Tests
         }
 
         [Test]
+        public void LoadedCharacterIsKeptWhenTargetIsAFriendlyShip()
+        {
+            var player = Ship(TeamSide.Player, 0);
+            var cannon = Cannon(player, Ship(TeamSide.Enemy, 3));
+            var passenger = Passenger(TeamSide.Player, 2);
+            Assert.IsTrue(cannon.TryLoadCharacter(passenger));
+            Assert.IsFalse(cannon.FireAt(player));
+            Assert.AreSame(passenger, cannon.LoadedCharacter);
+        }
+
+        [Test]
+        public void CharacterWithInvalidHardnessIsNotLoaded()
+        {
+            var player = Ship(TeamSide.Player, 0);
+            var cannon = Cannon(player, Ship(TeamSide.Enemy, 3));
+            var passenger = Passenger(TeamSide.Player, 2);
+            // 検証の対象は装填前の硬さなので、定義の値を直接不正にします。
+            typeof(CharacterDefinition).GetField("projectileHardness", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(passenger.Definition, -1f);
+            Assert.IsFalse(cannon.TryLoadCharacter(passenger));
+            Assert.IsFalse(cannon.IsLoaded);
+            Assert.IsTrue(passenger.GetComponent<PlayerCrewController>().enabled);
+        }
+
+        [UnityTest]
+        public IEnumerator LandedCharacterCanBeLaunchedAgain()
+        {
+            var player = Ship(TeamSide.Player, 0);
+            var enemy = Ship(TeamSide.Enemy, 3);
+            var passenger = Passenger(TeamSide.Player, 2);
+            var first = CharacterProjectile.Launch(passenger, Vector2.zero, enemy);
+            yield return new WaitForSeconds(1.0f);
+            Assert.AreEqual(ProjectileFlightStatus.Landed, first.Model.Status);
+            var second = CharacterProjectile.Launch(passenger, Vector2.zero, enemy);
+            Assert.AreSame(first, second);
+            yield return new WaitForSeconds(1.0f);
+            Assert.AreEqual(ProjectileFlightStatus.Landed, second.Model.Status);
+        }
+
+        [Test]
         public void EnemyCharacterCannotBeLoaded()
         {
             var player = Ship(TeamSide.Player, 0);

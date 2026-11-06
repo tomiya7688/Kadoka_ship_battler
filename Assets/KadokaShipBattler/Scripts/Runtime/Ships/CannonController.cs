@@ -43,6 +43,9 @@ namespace KadokaShipBattler.Ships
         {
             if (passenger == null || OwnerShip == null || IsLoaded || !passenger.IsAlive || passenger.TeamSide != OwnerShip.TeamSide)
                 return false;
+            // 弾としての硬さが不正な船員は、発射時に失われないよう装填しません。
+            var hardness = passenger.Definition.ProjectileHardness;
+            if (float.IsNaN(hardness) || float.IsInfinity(hardness) || hardness < 0) return false;
             // 砲台の中では行動せず、発射まで待ちます。
             loadedCharacter = passenger;
             var controller = passenger.GetComponent<PlayerCrewController>();
@@ -54,8 +57,8 @@ namespace KadokaShipBattler.Ships
         /* { 処理: 装填したキャラクターを敵船へ発射します。戻り値: 発射できたらtrueです。 } */
         private bool FireCharacterAt(ShipController target)
         {
-            // 目標がなければ砲台に留めたままにします。
-            if (target == null) return false;
+            // 目標がない、または味方の船なら砲台に留めたままにします。
+            if (target == null || OwnerShip == null || target.TeamSide == OwnerShip.TeamSide) return false;
             var passenger = loadedCharacter;
             loadedCharacter = null;
             return CharacterProjectile.Launch(passenger, transform.position, target) != null;
