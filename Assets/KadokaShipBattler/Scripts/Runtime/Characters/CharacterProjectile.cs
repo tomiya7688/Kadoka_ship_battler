@@ -32,6 +32,8 @@ namespace KadokaShipBattler.Characters
             projectile.model = new CharacterProjectileModel(from.x, from.y, target.transform.position.x,
                 target.transform.position.y, FlightSpeed, passenger.Definition.ProjectileHardness, behaviour);
             if (projectile.controller != null) projectile.controller.enabled = false;
+            // 着地後に無効化された再利用コンポーネントでも、再び飛行を更新します。
+            projectile.enabled = true;
             passenger.transform.position = new Vector3(from.x, from.y, 0f);
             Flying.Add(projectile);
             return projectile;
