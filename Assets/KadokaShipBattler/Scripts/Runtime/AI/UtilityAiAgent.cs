@@ -202,7 +202,7 @@ namespace KadokaShipBattler.AI
             var stats = crew.Definition;
             var flags = (stats.CanFly ? TraversalAbilities.Fly : 0) | (stats.CanPhase ? TraversalAbilities.Phase : 0);
             if (!arena.Navigation.TryFindPath(new NavPoint(transform.position.x, transform.position.y), new NavPoint(goal.x, goal.y),
-                flags, actor.TeamSide, arena.PlayerShip.IsHullBreached, arena.EnemyShip.IsHullBreached, out var path)) return false;
+                flags, actor.TeamSide, arena.IsPlayerShipOpenTo(actor.TeamSide, actor.HasBoarded), arena.IsEnemyShipOpenTo(actor.TeamSide, actor.HasBoarded), out var path)) return false;
             var previous = (Vector2)transform.position;
             foreach (var step in path)
             {

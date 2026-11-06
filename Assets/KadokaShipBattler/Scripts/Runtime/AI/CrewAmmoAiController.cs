@@ -137,7 +137,7 @@ namespace KadokaShipBattler.AI
             var definition = crew.Definition;
             var distance = CurrentAction == AiActionType.DefendShip ? Mathf.Min(0.45f, definition.AttackRange * 0.8f) : 0.45f;
             return ((Vector2)(target - transform.position)).sqrMagnitude > distance * distance ||
-                !actor.Arena.CanCrewMove(actor.TeamSide, transform.position, target, definition);
+                !actor.Arena.CanCrewMove(actor.TeamSide, transform.position, target, definition, actor.HasBoarded);
         }
 
         /* { 処理: 共通経路で移動し、経路失敗時は担当を回収します。 } */

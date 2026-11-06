@@ -12,6 +12,8 @@ namespace KadokaShipBattler.Characters
         public BattlePrototype Arena { get; set; }
         public Vector2 Facing { get; private set; } = Vector2.down;
         public bool IsDirectlyControlled { get; private set; }
+        /* { 説明: 砲台から発射されて相手船へ着地済みなら真です。相手船の船体が無傷でも、その部屋を移動できます。 } */
+        public bool HasBoarded { get; set; }
         public TeamSide TeamSide => Crew.TeamSide;
         public bool IsAvailable => this != null && isActiveAndEnabled && Crew.IsAlive;
         private CrewMember Crew => GetComponent<CrewMember>();
@@ -39,7 +41,7 @@ namespace KadokaShipBattler.Characters
             if (!CanAct || Crew.Definition == null || deltaTime <= 0f || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime)) return;
             Face(input);
             var next = (Vector2)transform.position + Vector2.ClampMagnitude(input, 1f) * (Crew.Definition.MoveSpeed * deltaTime);
-            if (Arena == null || Arena.CanCrewMove(TeamSide, transform.position, next, Crew.Definition)) transform.position = new Vector3(next.x, next.y, 0f);
+            if (Arena == null || Arena.CanCrewMove(TeamSide, transform.position, next, Crew.Definition, HasBoarded)) transform.position = new Vector3(next.x, next.y, 0f);
         }
         public void Face(Vector2 direction)
         {
@@ -53,7 +55,7 @@ namespace KadokaShipBattler.Characters
             System.Array.Sort(colliders, (a, b) => (a.transform.position - transform.position).sqrMagnitude.CompareTo((b.transform.position - transform.position).sqrMagnitude));
             foreach (var collider in colliders)
             {
-                if (Arena != null && !Arena.CanCrewMove(TeamSide, transform.position, collider.transform.position, Crew.Definition)) continue;
+                if (Arena != null && !Arena.CanCrewMove(TeamSide, transform.position, collider.transform.position, Crew.Definition, HasBoarded)) continue;
                 var cannon = collider.GetComponent<CannonController>();
                 if (cannon != null && cannon.TryInteract(Crew, Inventory)) return true;
                 var pickup = collider.GetComponent<AmmoPickup>();
