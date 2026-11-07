@@ -446,6 +446,14 @@ Check(restored.GetWeight(AiActionType.DefendShip) == learned.GetWeight(AiActionT
     foreach (var bad in new[] { -1f, float.NaN, float.PositiveInfinity })
         Check(Throws(() => new CrewLifecycleModel(bad)), "Reject respawn time " + bad);
     Check(Throws(() => life.Tick(0)), "Reject zero delta");
+    // 復帰処理が失敗しても行動可能にならず、次の更新で再試行されます。
+    var attempts = 0;
+    var flaky = new CrewLifecycleModel(0f, null, () => { if (++attempts == 1) throw new InvalidOperationException("respawn failed"); });
+    flaky.Down();
+    try { flaky.Tick(0.1f); } catch (InvalidOperationException) { }
+    Check(flaky.State == CrewLifecycleState.Respawning && !flaky.IsTargetable, "Failed respawn keeps the crew waiting");
+    flaky.Tick(0.1f);
+    Check(flaky.State == CrewLifecycleState.Active && attempts == 2, "Respawn is retried on the next tick");
 }
 
 bool Throws(Action action)

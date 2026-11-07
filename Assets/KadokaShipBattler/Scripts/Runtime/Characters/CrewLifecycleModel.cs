@@ -29,7 +29,7 @@ namespace KadokaShipBattler.Characters
         // AI・操作切替・タスク予約・攻撃の対象にできるのは、行動可能な間だけです。
         public bool IsTargetable => State == CrewLifecycleState.Active;
 
-        /* { 処理: 状態機械を作ります。引数: respawnSecondsは0以上の有限値、onDownedは倒れた時に1回だけ呼ぶ後始末（制御停止・予約解放・所持弾処理・飛行終了・操作対象の切替）、onRespawnedは復帰時に1回呼ぶ処理（自船のスポーン位置への配置とHP全回復）。例外: 不正な復帰時間を拒否します。 } */
+        /* { 処理: 状態機械を作ります。引数: respawnSecondsは0以上の有限値、onDownedは倒れた時に1回だけ呼ぶ後始末（例外を投げない契約。投げた場合も状態は倒れたままで、二重実行はされません）（制御停止・予約解放・所持弾処理・飛行終了・操作対象の切替）、onRespawnedは復帰時に1回呼ぶ処理（自船のスポーン位置への配置とHP全回復）。例外: 不正な復帰時間を拒否します。 } */
         public CrewLifecycleModel(float respawnSeconds, Action onDowned = null, Action onRespawned = null)
         {
             if (float.IsNaN(respawnSeconds) || float.IsInfinity(respawnSeconds) || respawnSeconds < 0)
@@ -60,8 +60,9 @@ namespace KadokaShipBattler.Characters
             if (State == CrewLifecycleState.Downed) State = CrewLifecycleState.Respawning;
             RemainingSeconds = Math.Max(0, RemainingSeconds - deltaTime);
             if (RemainingSeconds > 0) return;
-            State = CrewLifecycleState.Active;
+            // 復帰処理が成功してから行動可能にします。失敗（例外）した場合は復帰待ちのまま残り、次の更新で再試行されます。
             onRespawned?.Invoke();
+            State = CrewLifecycleState.Active;
         }
     }
 }
