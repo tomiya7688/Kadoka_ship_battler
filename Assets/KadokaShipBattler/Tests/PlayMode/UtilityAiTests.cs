@@ -76,7 +76,7 @@ namespace KadokaShipBattler.Tests
         {
             Ammo(new Vector2(-5, -1)); arena.Controls.CycleNext(); arena.AllyActionsEnabled = true;
             var ai = Actor.GetComponent<CrewAmmoAiController>();
-            for (var i = 0; i < 250 && arena.EnemyShip.CurrentHull == 100; i++) ai.Tick(0.02f);
+            for (var i = 0; i < 250 && arena.EnemyShip.CurrentHull == 100; i++) { ai.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(75));
             foreach (var action in new[] { AiActionType.CarryAmmo, AiActionType.LoadCannon, AiActionType.OperateCannon })
                 Assert.That(Utility.Learning.GetWeight(action), Is.GreaterThan(1), action.ToString());

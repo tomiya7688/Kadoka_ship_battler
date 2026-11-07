@@ -137,7 +137,7 @@ namespace KadokaShipBattler.Tests
             arena.Controls.CycleNext();
             arena.AllyActionsEnabled = true;
             var ai = previous.GetComponent<CrewAmmoAiController>();
-            for (var step = 0; step < 200 && arena.EnemyShip.CurrentHull == 100; step++) ai.Tick(0.02f);
+            for (var step = 0; step < 200 && arena.EnemyShip.CurrentHull == 100; step++) { ai.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(75), "Resumed AI must execute pickup, movement, loading and firing");
             Assert.That(previous.GetComponent<CrewAmmoInventory>().HasAmmo, Is.False);
             Assert.That(arena.PlayerCannon.IsLoaded, Is.False);

@@ -9,6 +9,12 @@ namespace KadokaShipBattler.Core
         float Weight { get; }
     }
 
+    /* { 責務: 飛翔体としての衝突耐久（硬さ）を持つ弾の拡張口。 } */
+    public interface IHardAmmo : IAmmo
+    {
+        float Hardness { get; }
+    }
+
     public interface ITrackedAmmo : IAmmo
     {
         bool CanCarry { get; }
@@ -147,6 +153,17 @@ namespace KadokaShipBattler.Core
             if (LoadedAmmo is ITrackedAmmo tracked) tracked.ReturnToDeck();
             LoadedAmmo = null;
             return true;
+        }
+
+        /* { 処理: 発射条件を満たすとき、装填した弾を砲台から取り外して返します。ダメージと山札への返却は着弾側が行います。引数: owner、targetは両船の戦闘状態。戻り値: 発射する弾。条件を満たさなければnullで装填は保持します。 } */
+        public IAmmo Detach(ShipBattleState owner, ShipBattleState target)
+        {
+            if (LoadedAmmo == null || owner == null || target == null || owner.IsDestroyed ||
+                target.IsDestroyed || ReferenceEquals(owner, target) || owner.TeamSide == target.TeamSide)
+                return null;
+            var launched = LoadedAmmo;
+            LoadedAmmo = null;
+            return launched;
         }
 
         public void Clear()

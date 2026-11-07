@@ -5,7 +5,7 @@ using KadokaShipBattler.Core;
 namespace KadokaShipBattler.Ammo
 {
     [Serializable]
-    public sealed class AmmoStats : IAmmo
+    public sealed class AmmoStats : IHardAmmo
     {
         public string id;
         public string displayName;
@@ -14,6 +14,7 @@ namespace KadokaShipBattler.Ammo
         public float hardness;
         public float Damage => damage;
         public float Weight => weight;
+        public float Hardness => hardness;
         public void Validate()
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName) ||
@@ -90,13 +91,14 @@ namespace KadokaShipBattler.Ammo
     public enum AmmoRoundStage { Ground, Carried, Loaded, Returned }
 
     // A fresh handle for every appearance. Old handles cannot return or take a new appearance of the same slot.
-    public sealed class AmmoDeckRound : ITrackedAmmo
+    public sealed class AmmoDeckRound : ITrackedAmmo, IHardAmmo
     {
         private readonly AmmoDeckState owner;
         public int Slot { get; }
         public IAmmo Definition { get; }
         public float Damage { get; }
         public float Weight { get; }
+        public float Hardness => Definition is IHardAmmo hard ? hard.Hardness : 1f;
         public AmmoRoundStage Stage { get; private set; } = AmmoRoundStage.Ground;
         public bool CanCarry => Stage == AmmoRoundStage.Ground && owner.IsCurrent(this);
         internal AmmoDeckRound(AmmoDeckState owner, int slot, IAmmo definition)

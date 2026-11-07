@@ -1,3 +1,4 @@
+using KadokaShipBattler.Ammo;
 using System.Collections;
 using System.Linq;
 using KadokaShipBattler.AI;
@@ -27,7 +28,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(utility.Decision.Selected.TargetId, Is.EqualTo(pickup.GetInstanceID()));
             Assert.That(utility.SelectedObservation, Is.Null, "Shared report is not a local action reference");
             Assert.That(recipient.GetComponent<CrewAmmoInventory>().Count, Is.EqualTo(0));
-            for (var tick = 0; tick < 300 && Arena.EnemyShip.CurrentHull == 100; tick++) ai.Tick(0.02f);
+            for (var tick = 0; tick < 300 && Arena.EnemyShip.CurrentHull == 100; tick++) { ai.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(Arena.EnemyShip.CurrentHull, Is.EqualTo(75));
             Assert.That(Coordinator.Observations.GetCurrent(Time.time).Any(sample => sample.TargetId == pickup.GetInstanceID()), Is.False);
         }

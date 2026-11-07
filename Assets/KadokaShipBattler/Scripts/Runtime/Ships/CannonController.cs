@@ -67,10 +67,14 @@ namespace KadokaShipBattler.Ships
             return CharacterProjectile.Launch(passenger, transform.position, target, null, trajectoryKind) != null;
         }
 
+        /* { 処理: 装填した弾を敵船へ発射します。通常砲弾は飛翔体になり、着弾したときにだけダメージを与えます。戻り値: 発射できたらtrueです。 } */
         public bool FireAt(ShipController target)
         {
             if (loadedCharacter != null) return FireCharacterAt(target);
-            return OwnerShip != null && target != null && state.FireAt(OwnerShip.BattleState, target.BattleState);
+            if (OwnerShip == null || target == null) return false;
+            var ammo = state.Detach(OwnerShip.BattleState, target.BattleState);
+            if (ammo == null) return false;
+            return AmmoProjectile.Launch(ammo, OwnerShip.TeamSide, target, transform.position, trajectoryKind) != null;
         }
 
         public bool TryInteract(CrewMember crew, CrewAmmoInventory inventory)

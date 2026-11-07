@@ -1,3 +1,4 @@
+using KadokaShipBattler.Ammo;
 using System.Collections;
 using System.Linq;
 using KadokaShipBattler.AI;
@@ -29,7 +30,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(second.GetComponent<UtilityAiAgent>().Scores.Any(score => score.Candidate.TargetId == firstReservation.Target.TargetId), Is.False);
 
             // 予約を使う状態でも、取得、装填、発射を完了します。
-            for (var tick = 0; tick < 250 && Arena.EnemyShip.CurrentHull == 100; tick++) firstAi.Tick(0.02f);
+            for (var tick = 0; tick < 250 && Arena.EnemyShip.CurrentHull == 100; tick++) { firstAi.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(Arena.EnemyShip.CurrentHull, Is.EqualTo(75));
             Assert.That(Coordinator.Reservations.IsCurrent(firstReservation, Time.time), Is.False);
         }
@@ -47,7 +48,7 @@ namespace KadokaShipBattler.Tests
             RunCrew(second);
             Assert.That(first.GetComponent<UtilityAiAgent>().CurrentAction, Is.EqualTo(AiActionType.LoadCannon));
             Assert.That(second.GetComponent<UtilityAiAgent>().Scores.Any(score => score.Candidate.TargetId == Arena.PlayerCannon.GetInstanceID()), Is.False);
-            for (var tick = 0; tick < 250 && !Arena.PlayerCannon.IsLoaded; tick++) firstAi.Tick(0.02f);
+            for (var tick = 0; tick < 250 && !Arena.PlayerCannon.IsLoaded; tick++) { firstAi.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(Arena.PlayerCannon.IsLoaded, Is.True);
             var secondUtility = second.GetComponent<UtilityAiAgent>();
             secondUtility.SelectAction();
@@ -73,6 +74,7 @@ namespace KadokaShipBattler.Tests
             firstAi.Tick(0.02f);
             Assert.That(Arena.EnemyShip.CurrentHull, Is.EqualTo(100));
             specialistAi.Tick(0.02f);
+            ShellFlight.Land();
             Assert.That(Arena.EnemyShip.CurrentHull, Is.EqualTo(75));
         }
 

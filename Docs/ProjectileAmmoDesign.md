@@ -323,6 +323,10 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 
 また、盾を一方的に壊すハンマー、反射、周囲の弾を消す弾、デッキ常駐効果、所持中効果、複数アイテムの合成など、硬さだけでは表現できない効果が多いため、Effectを領域別に分離する。
 
+## 通常砲弾の実装状況（2026-11-07）
+
+通常砲弾は `AmmoProjectile` として飛び、キャラクター弾と同じ衝突耐久（`UpdateContact`/`Hit`）と弾道（Direct/Arc）で衝突し、着弾時にだけ既存のダメージ処理を呼びます。詳細は [キャラクターの弾化](CharacterProjectile.md) の「通常砲弾の飛翔体化」を参照してください。共通 `ProjectileRuntime` への完全統合とEffect（盾・反射など）は Issue #41 の範囲です。
+
 ## 特殊効果の実装状況（Issue #41 第1段階、最終確認日 2026-11-07）
 
 純C#で次を実装済みです（`Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileEffects.cs`）。Unityの実行状態やScriptableObjectへの変換は後続です。

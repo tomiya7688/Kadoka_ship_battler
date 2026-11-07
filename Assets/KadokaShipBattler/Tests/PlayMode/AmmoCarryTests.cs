@@ -101,6 +101,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(arena.PlayerCannon.TryLoadFrom(Inventory), Is.True);
             Assert.That(arena.PlayerCannon.LoadedAmmo, Is.SameAs(heavy));
             Assert.That(arena.PlayerCannon.FireAt(arena.EnemyShip), Is.True);
+            ShellFlight.Land();
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(35));
             Assert.That(Inventory.Count, Is.Zero);
             Assert.That(Inventory.CurrentWeight, Is.Zero);
@@ -155,7 +156,8 @@ namespace KadokaShipBattler.Tests
             Assert.That(Inventory.CurrentWeight, Is.EqualTo(5));
             arena.AllyActionsEnabled = true;
             var ai = actor.GetComponent<CrewAmmoAiController>();
-            for (var step = 0; step < 100 && arena.EnemyShip.CurrentHull > 35; step++) ai.Tick(0.1f);
+            for (var step = 0; step < 100 && arena.EnemyShip.CurrentHull > 35; step++) { ai.Tick(0.1f); AmmoProjectile.AdvanceAll(0.1f); }
+            ShellFlight.Land();
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(35));
             Assert.That(Inventory.Count, Is.Zero);
             Assert.That(Inventory.CurrentWeight, Is.Zero);
