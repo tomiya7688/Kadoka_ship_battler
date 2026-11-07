@@ -280,5 +280,8 @@ internal static class ProjectileChecks
         Check(deck.CountFor("deck-1") == 1 && deck.Clear("deck-1") == 1 && effect.Left == 1 && deck.CountFor("deck-1") == 0, "Clear deactivates everything");
         Rejects(() => carry.Activate(" ", effect), "Blank owner rejected");
         Rejects(() => carry.Activate("crew-2", null!), "Null effect rejected by ledger");
+        var failing = new ScopedEffectLedger<ICarryEffect>((e, id) => throw new ArgumentException("boom"), (e, id) => { });
+        Rejects(() => failing.Activate("crew-3", effect), "Failing notification propagates");
+        Check(failing.CountFor("crew-3") == 0, "Failed activation is rolled back");
     }
 }

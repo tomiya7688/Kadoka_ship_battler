@@ -50,7 +50,14 @@ namespace KadokaShipBattler.Ammo
             if (!active.TryGetValue(ownerId, out var list)) active[ownerId] = list = new List<TEffect>();
             if (list.Contains(effect)) return false;
             list.Add(effect);
-            onActivate(effect, ownerId);
+            try { onActivate(effect, ownerId); }
+            catch
+            {
+                // 通知に失敗した効果は有効のまま残さず、台帳と通知の状態を一致させます。
+                list.Remove(effect);
+                if (list.Count == 0) active.Remove(ownerId);
+                throw;
+            }
             return true;
         }
 
@@ -70,9 +77,16 @@ namespace KadokaShipBattler.Ammo
         public int Clear(string ownerId)
         {
             if (ownerId == null || !active.TryGetValue(ownerId, out var list)) return 0;
+            var count = list.Count;
+            // 1件ずつ外して通知するため、途中で例外が出ても未通知分は台帳に残り、後から再実行できます。
+            while (list.Count > 0)
+            {
+                var effect = list[list.Count - 1];
+                onDeactivate(effect, ownerId);
+                list.RemoveAt(list.Count - 1);
+            }
             active.Remove(ownerId);
-            foreach (var effect in list) onDeactivate(effect, ownerId);
-            return list.Count;
+            return count;
         }
     }
 }
