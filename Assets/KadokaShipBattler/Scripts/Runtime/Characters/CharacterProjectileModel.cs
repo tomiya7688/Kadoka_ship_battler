@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace KadokaShipBattler.Characters
 {
@@ -17,9 +18,16 @@ namespace KadokaShipBattler.Characters
         float GetSpeedMultiplier(float flightSeconds);
     }
 
+    /* { 責務: 弾同士の衝突で、通常の耐久処理を上書きする特殊効果の拡張口。例: 盾割り、反射、すり抜け、変化。 } */
+    public interface IProjectileClashEffect
+    {
+        /* { 処理: 衝突直前に呼ばれます。引数: selfは効果を持つ弾、otherは相手。戻り値: 通常処理を上書きして済ませたらtrueです。補足: trueは双方の耐久処理を効果側が完了済みとみなします。falseは通常処理へ進み、Hitは飛行中でない弾の耐久を減らしません。falseを返す場合に弾の状態を変えてもよいですが、その場合の裁定は変更後の状態に対する通常処理になります。 } */
+        bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other);
+    }
+
     /* {
         責務: 大砲から敵船へ飛ぶキャラクターを、通常の弾と同じ飛翔体として扱う純粋なモデルです。
-        前提: 座標は秒と同じ単位の連続値で、衝突と到達の判定は呼び出し側の幾何から渡します。
+        前提: 座標は秒と同じ単位の連続値で、衝突と到達の判定は呼び出し側の幾何から渡します。硬さは大小比較ではなく衝突耐久です。
         計算量: 1回の更新は定数時間です。
     } */
     public sealed class CharacterProjectileModel
@@ -28,29 +36,35 @@ namespace KadokaShipBattler.Characters
         private readonly float targetY;
         private readonly float speed;
         private readonly IProjectileBehaviour behaviour;
+        private readonly IProjectileClashEffect clashEffect;
+        // 現在重なっている相手。同じ接触を複数フレームで数えないために使います。
+        private readonly HashSet<CharacterProjectileModel> contacts = new();
 
         public float X { get; private set; }
         public float Y { get; private set; }
-        public float Hardness { get; }
+        public int MaxHardness { get; }
+        public int RemainingHardness { get; private set; }
         public float FlightSeconds { get; private set; }
         public ProjectileFlightStatus Status { get; private set; } = ProjectileFlightStatus.Flying;
 
-        /* { 処理: 発射位置、着弾目標、速度、弾としての硬さで飛翔を開始します。例外: 非有限値、負の値、速度0を拒否します。 } */
+        /* { 処理: 発射位置、着弾目標、速度、衝突耐久で飛翔を開始します。例外: 非有限値、速度0以下、耐久1未満を拒否します。 } */
         public CharacterProjectileModel(float startX, float startY, float targetX, float targetY, float speed,
-            float hardness, IProjectileBehaviour behaviour = null)
+            int hardness, IProjectileBehaviour behaviour = null, IProjectileClashEffect clashEffect = null)
         {
             // 不正値は飛行中に位置を壊すため、構築時に弾きます。
             if (!IsFinite(startX) || !IsFinite(startY) || !IsFinite(targetX) || !IsFinite(targetY))
                 throw new ArgumentOutOfRangeException(nameof(startX));
             if (!IsFinite(speed) || speed <= 0) throw new ArgumentOutOfRangeException(nameof(speed));
-            if (!IsFinite(hardness) || hardness < 0) throw new ArgumentOutOfRangeException(nameof(hardness));
+            if (hardness < 1) throw new ArgumentOutOfRangeException(nameof(hardness));
             X = startX;
             Y = startY;
             this.targetX = targetX;
             this.targetY = targetY;
             this.speed = speed;
-            Hardness = hardness;
+            MaxHardness = hardness;
+            RemainingHardness = hardness;
             this.behaviour = behaviour;
+            this.clashEffect = clashEffect;
         }
 
         /* { 処理: 飛行を進め、目標に届けば着地にします。引数: deltaTimeは有限の正の秒数です。戻り値: 現在の状態です。 } */
@@ -71,6 +85,7 @@ namespace KadokaShipBattler.Characters
                 X = targetX;
                 Y = targetY;
                 Status = ProjectileFlightStatus.Landed;
+                contacts.Clear();
                 return Status;
             }
             X = (float)(X + dx / distance * step);
@@ -78,22 +93,55 @@ namespace KadokaShipBattler.Characters
             return Status;
         }
 
-        /* { 処理: 別の飛翔体との衝突を硬さで裁定します。硬い方が残り、同じ硬さなら両方落ちます。 } */
-        public static void Clash(CharacterProjectileModel left, CharacterProjectileModel right)
+        /* { 処理: 衝突耐久を1減らし、0以下なら撃墜します。戻り値: この呼び出しで撃墜されたらtrueです。 } */
+        public bool Hit()
+        {
+            if (Status != ProjectileFlightStatus.Flying) return false;
+            RemainingHardness--;
+            if (RemainingHardness > 0) return false;
+            Destroy();
+            return true;
+        }
+
+        /* { 処理: 耐久に関係なく撃墜します。特殊効果の上書き処理から使います。 } */
+        public void Destroy()
+        {
+            if (Status != ProjectileFlightStatus.Flying) return;
+            Status = ProjectileFlightStatus.Destroyed;
+            contacts.Clear();
+        }
+
+        /* {
+            処理: 2つの弾の当たり判定の重なりを渡し、重なり始めの1回だけ衝突を裁定します。重なりが外れると次の接触を数え直します。
+            引数: left、rightは弾、overlappingは実際に2D上で当たり判定が重なっているか。戻り値: なし。例外: nullを拒否します。
+        } */
+        public static void UpdateContact(CharacterProjectileModel left, CharacterProjectileModel right, bool overlapping)
         {
             if (left == null) throw new ArgumentNullException(nameof(left));
             if (right == null) throw new ArgumentNullException(nameof(right));
+            if (ReferenceEquals(left, right)) return;
+            if (!overlapping)
+            {
+                left.contacts.Remove(right);
+                right.contacts.Remove(left);
+                return;
+            }
             if (left.Status != ProjectileFlightStatus.Flying || right.Status != ProjectileFlightStatus.Flying) return;
-            if (left.Hardness <= right.Hardness) left.Status = ProjectileFlightStatus.Destroyed;
-            if (right.Hardness <= left.Hardness) right.Status = ProjectileFlightStatus.Destroyed;
+            // 同じ2つの接触を複数フレームで数えません。
+            if (!left.contacts.Add(right)) return;
+            right.contacts.Add(left);
+            // 特殊効果は通常の耐久処理を上書きできます。
+            if (left.clashEffect != null && left.clashEffect.PreClash(left, right)) return;
+            if (right.clashEffect != null && right.clashEffect.PreClash(right, left)) return;
+            left.Hit();
+            right.Hit();
         }
 
-        /* { 処理: 通常の弾の硬さと衝突させます。通常弾の硬さ以下なら撃ち落とされ、より硬ければ弾だけが壊れます。戻り値: 自分が生き残ればtrueです。 } */
-        public bool ClashWithShell(float shellHardness)
+        /* { 処理: 通常弾1発の命中を受けて耐久を1減らします。戻り値: 生き残ればtrueです。 } */
+        public bool HitByShell()
         {
-            if (!IsFinite(shellHardness) || shellHardness < 0) throw new ArgumentOutOfRangeException(nameof(shellHardness));
             if (Status != ProjectileFlightStatus.Flying) return false;
-            if (Hardness <= shellHardness) Status = ProjectileFlightStatus.Destroyed;
+            Hit();
             return Status == ProjectileFlightStatus.Flying;
         }
 

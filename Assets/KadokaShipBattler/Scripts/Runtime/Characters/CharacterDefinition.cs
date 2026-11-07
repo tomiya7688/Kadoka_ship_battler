@@ -19,7 +19,7 @@ namespace KadokaShipBattler.Characters
         [SerializeField] private NormalAttackMode attackMode = NormalAttackMode.Contact;
         [Min(0f)] [SerializeField] private float attackDamage = 25f;
         [Min(0f)] [SerializeField] private float attackRange = 0.9f;
-        [Min(0f)] [SerializeField] private float projectileHardness = 1f;
+        [Min(1)] [SerializeField] private int projectileHardness = 1;
         [SerializeField] private bool canFly;
         [SerializeField] private bool canPhase;
 
@@ -35,7 +35,7 @@ namespace KadokaShipBattler.Characters
         public NormalAttackMode AttackMode => attackMode;
         public float AttackDamage => attackDamage;
         public float AttackRange => attackRange;
-        public float ProjectileHardness => projectileHardness;
+        public int ProjectileHardness => projectileHardness;
         public bool CanFly => canFly;
         public bool CanPhase => canPhase;
 
