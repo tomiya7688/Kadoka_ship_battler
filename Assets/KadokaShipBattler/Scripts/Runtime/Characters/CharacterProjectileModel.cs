@@ -21,7 +21,7 @@ namespace KadokaShipBattler.Characters
     /* { 責務: 弾同士の衝突で、通常の耐久処理を上書きする特殊効果の拡張口。例: 盾割り、反射、すり抜け、変化。 } */
     public interface IProjectileClashEffect
     {
-        /* { 処理: 衝突直前に呼ばれます。引数: selfは効果を持つ弾、otherは相手。戻り値: 通常処理を上書きして済ませたらtrueです。 } */
+        /* { 処理: 衝突直前に呼ばれます。引数: selfは効果を持つ弾、otherは相手。戻り値: 通常処理を上書きして済ませたらtrueです。補足: trueは双方の耐久処理を効果側が完了済みとみなします。falseは通常処理へ進み、Hitは飛行中でない弾の耐久を減らしません。falseを返す場合に弾の状態を変えてもよいですが、その場合の裁定は変更後の状態に対する通常処理になります。 } */
         bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other);
     }
 
