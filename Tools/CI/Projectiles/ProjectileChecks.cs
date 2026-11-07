@@ -1,3 +1,4 @@
+using KadokaShipBattler.Ammo;
 using KadokaShipBattler.Characters;
 
 /* { 責務: キャラクター弾の飛行、衝突、着地、拡張口の本番モデルをCIで検証します。 } */
@@ -10,6 +11,7 @@ internal static class ProjectileChecks
     {
         FlightScenarios();
         ClashScenarios();
+        TrajectoryScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
     }
@@ -156,5 +158,43 @@ internal static class ProjectileChecks
         Rejects(() => new CharacterProjectileModel(0, 0, 1, 0, 1, -1), "Negative hardness rejected");
         Rejects(() => new CharacterProjectileModel(0, 0, 1, 0, 1, 1).Advance(0), "Zero delta rejected");
         Rejects(() => CharacterProjectileModel.UpdateContact(null!, null!, true), "Null contact rejected");
+    }
+
+    /* { 処理: DirectとArcが別の2D軌道を通り、交差しても通過時刻が違えば重ならないことを確認します。 } */
+    private static void TrajectoryScenarios()
+    {
+        var direct = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, null, null, ProjectileTrajectoryKind.Direct);
+        var arc = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, null, null, ProjectileTrajectoryKind.Arc);
+        direct.Advance(1);
+        arc.Advance(1);
+        // Directは直線、Arcは同じ進行度でも頂点側へ持ち上がります。
+        Check(Math.Abs(direct.Y) < 0.001f && arc.Y > 1f && Math.Abs(direct.X - arc.X) < 0.001f, "Arc rises above the straight line");
+        Check(direct.Advance(1) == ProjectileFlightStatus.Landed && arc.Advance(1) == ProjectileFlightStatus.Landed, "Both kinds land at the target");
+        Check(arc.X == 10 && arc.Y == 0, "Arc ends exactly on the target");
+
+        // 軌道が交差しても、同じ時刻に当たり判定が重ならなければ衝突しません。
+        var a = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, null, null, ProjectileTrajectoryKind.Direct);
+        var b = new CharacterProjectileModel(5, -5, 5, 5, 1, 1, null, null, ProjectileTrajectoryKind.Direct);
+        var clashed = false;
+        for (var i = 0; i < 40 && a.Status == ProjectileFlightStatus.Flying; i++)
+        {
+            a.Advance(0.05f);
+            b.Advance(0.05f);
+            var overlap = Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y)) <= 0.4;
+            CharacterProjectileModel.UpdateContact(a, b, overlap);
+            clashed |= overlap;
+        }
+        Check(!clashed && a.RemainingHardness == 1 && b.RemainingHardness == 1, "Crossing paths at different times do not clash");
+
+        // 同じ時刻に実際に重なれば、軌道が違っても衝突します。
+        var c = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, null, null, ProjectileTrajectoryKind.Direct);
+        var d = new CharacterProjectileModel(0, 0, 10, 0, 5, 1, null, null, ProjectileTrajectoryKind.Arc);
+        c.Advance(0.01f);
+        d.Advance(0.01f);
+        CharacterProjectileModel.UpdateContact(c, d, Math.Sqrt((c.X - d.X) * (c.X - d.X) + (c.Y - d.Y) * (c.Y - d.Y)) <= 0.4);
+        Check(c.Status == ProjectileFlightStatus.Destroyed && d.Status == ProjectileFlightStatus.Destroyed, "Overlapping projectiles clash regardless of kind");
+
+        Rejects(() => new ProjectileTrajectory((ProjectileTrajectoryKind)99, 0, 0, 1, 1), "Undefined kind rejected");
+        Rejects(() => new ProjectileTrajectory(ProjectileTrajectoryKind.Arc, float.NaN, 0, 1, 1), "NaN trajectory rejected");
     }
 }

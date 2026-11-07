@@ -10,6 +10,8 @@ namespace KadokaShipBattler.Ships
     {
         [SerializeField] private ShipController ownerShip;
         [SerializeField] private ShipController targetShip;
+        // 砲台ごとの弾道。Directはほぼ直線、Arcは山なりに飛びます。
+        [SerializeField] private ProjectileTrajectoryKind trajectoryKind = ProjectileTrajectoryKind.Direct;
         private readonly CannonState state = new CannonState();
         private CrewMember loadedCharacter;
 
@@ -17,6 +19,7 @@ namespace KadokaShipBattler.Ships
         public AmmoDefinition LoadedAmmo => (state.LoadedAmmo is AmmoDeckRound round ? round.Definition : state.LoadedAmmo) as AmmoDefinition;
         public bool IsLoaded => state.LoadedAmmo != null || loadedCharacter != null;
         public CrewMember LoadedCharacter => loadedCharacter;
+        public ProjectileTrajectoryKind TrajectoryKind { get => trajectoryKind; set => trajectoryKind = value; }
         public ShipController OwnerShip => ownerShip != null ? ownerShip : ownerShip = GetComponentInParent<ShipController>();
 
         private void Awake()
@@ -61,7 +64,7 @@ namespace KadokaShipBattler.Ships
             if (target == null || OwnerShip == null || target.TeamSide == OwnerShip.TeamSide) return false;
             var passenger = loadedCharacter;
             loadedCharacter = null;
-            return CharacterProjectile.Launch(passenger, transform.position, target) != null;
+            return CharacterProjectile.Launch(passenger, transform.position, target, null, trajectoryKind) != null;
         }
 
         public bool FireAt(ShipController target)
