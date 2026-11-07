@@ -13,6 +13,7 @@ internal static class ProjectileChecks
         ClashScenarios();
         TrajectoryScenarios();
         EffectScenarios();
+        ScopedScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
     }
@@ -256,5 +257,31 @@ internal static class ProjectileChecks
         tricky.Register(new[] { "a", "a", "b" }, "y");
         Check(tricky.TryResolve(new[] { "b", "a", "a" }, out var multi) && multi == "y" && !tricky.TryResolve(new[] { "a", "b" }, out _), "Quantities are distinguished");
         Rejects(() => new ClashEffectChain().Add(null!), "Null effect rejected");
+    }
+
+    private sealed class Counter : ICarryEffect, IDeckPassiveEffect
+    {
+        public int Held, Released, Entered, Left;
+        public void OnHeld(string holderId) => Held++;
+        public void OnReleased(string holderId) => Released++;
+        public void OnEnterDeck(string deckId) => Entered++;
+        public void OnLeaveDeck(string deckId) => Left++;
+    }
+
+    /* { 処理: 所持効果とデッキ効果が独立して有効化・無効化され、通知が1回ずつであることを確認します。 } */
+    private static void ScopedScenarios()
+    {
+        var effect = new Counter();
+        var carry = new ScopedEffectLedger<ICarryEffect>((e, id) => e.OnHeld(id), (e, id) => e.OnReleased(id));
+        var deck = new ScopedEffectLedger<IDeckPassiveEffect>((e, id) => e.OnEnterDeck(id), (e, id) => e.OnLeaveDeck(id));
+        Check(carry.Activate("crew-1", effect) && !carry.Activate("crew-1", effect) && effect.Held == 1, "Carry notified once");
+        Check(deck.Activate("deck-1", effect) && effect.Entered == 1 && effect.Held == 1, "Deck passive is independent of carry");
+        Check(carry.Deactivate("crew-1", effect) && !carry.Deactivate("crew-1", effect) && effect.Released == 1 && effect.Left == 0, "Releasing carry leaves deck passive");
+        Check(deck.CountFor("deck-1") == 1 && deck.Clear("deck-1") == 1 && effect.Left == 1 && deck.CountFor("deck-1") == 0, "Clear deactivates everything");
+        Rejects(() => carry.Activate(" ", effect), "Blank owner rejected");
+        Rejects(() => carry.Activate("crew-2", null!), "Null effect rejected by ledger");
+        var failing = new ScopedEffectLedger<ICarryEffect>((e, id) => throw new ArgumentException("boom"), (e, id) => { });
+        Rejects(() => failing.Activate("crew-3", effect), "Failing notification propagates");
+        Check(failing.CountFor("crew-3") == 0, "Failed activation is rolled back");
     }
 }

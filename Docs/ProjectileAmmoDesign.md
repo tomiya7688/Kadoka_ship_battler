@@ -333,3 +333,9 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 - 検証: `Tools/CI/Projectiles` の dotnet チェックで、再利用・評価順・タグ不一致時の通常処理・素材規則を確認しています。
 
 未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、CarryEffect、DeckPassiveEffect、OnLaunch/Tick などのライフサイクル、ScriptableObject定義からの変換。
+
+### 所持効果・デッキ効果（Issue #41 第2段階、最終確認日 2026-11-07）
+
+`ScopedEffects.cs` に `ICarryEffect`（所持中だけ）と `IDeckPassiveEffect`（デッキにある間だけ）を追加しました。両者と飛翔効果は別のインターフェースで、互いに依存しません。有効化・無効化は型に依存しない `ScopedEffectLedger<TEffect>` が所有者ID単位で管理し、通知は1回ずつです。所持用とデッキ用で別の台帳を持つため、同じ効果オブジェクトを両方に使っても一方の解除が他方に影響しません。
+
+未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。
