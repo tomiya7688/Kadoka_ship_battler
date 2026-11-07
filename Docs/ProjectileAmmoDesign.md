@@ -323,6 +323,23 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 
 また、盾を一方的に壊すハンマー、反射、周囲の弾を消す弾、デッキ常駐効果、所持中効果、複数アイテムの合成など、硬さだけでは表現できない効果が多いため、Effectを領域別に分離する。
 
-## 12. 実装状況（2026-11-07）
+## 通常砲弾の実装状況（2026-11-07）
 
 通常砲弾は `AmmoProjectile` として飛び、キャラクター弾と同じ衝突耐久（`UpdateContact`/`Hit`）と弾道（Direct/Arc）で衝突し、着弾時にだけ既存のダメージ処理を呼びます。詳細は [キャラクターの弾化](CharacterProjectile.md) の「通常砲弾の飛翔体化」を参照してください。共通 `ProjectileRuntime` への完全統合とEffect（盾・反射など）は Issue #41 の範囲です。
+
+## 特殊効果の実装状況（Issue #41 第1段階、最終確認日 2026-11-07）
+
+純C#で次を実装済みです（`Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileEffects.cs`）。Unityの実行状態やScriptableObjectへの変換は後続です。
+
+- `ClashEffectChain`: 衝突時の効果を登録順に評価し、最初に通常処理を上書きした効果で止めます。同じ効果を複数の弾で共有できます。
+- `BreakTaggedProjectileEffect`（盾割り）と `IgnoreTaggedProjectileEffect`（すり抜け）: 弾名ではなくタグで相手を選びます。弾には `AddTag` / `HasTag` でタグを付けます。
+- `AmmoCombinationRules`: 素材の組み合わせから結果IDを引く規則表です。弾定義の外で登録でき、素材の順序に依存せず、同じ素材集合の二重登録を拒否します。
+- 検証: `Tools/CI/Projectiles` の dotnet チェックで、再利用・評価順・タグ不一致時の通常処理・素材規則を確認しています。
+
+未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、CarryEffect、DeckPassiveEffect、OnLaunch/Tick などのライフサイクル、ScriptableObject定義からの変換。
+
+### 所持効果・デッキ効果（Issue #41 第2段階、最終確認日 2026-11-07）
+
+`ScopedEffects.cs` に `ICarryEffect`（所持中だけ）と `IDeckPassiveEffect`（デッキにある間だけ）を追加しました。両者と飛翔効果は別のインターフェースで、互いに依存しません。有効化・無効化は型に依存しない `ScopedEffectLedger<TEffect>` が所有者ID単位で管理し、通知は1回ずつです。所持用とデッキ用で別の台帳を持つため、同じ効果オブジェクトを両方に使っても一方の解除が他方に影響しません。
+
+未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。

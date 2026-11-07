@@ -424,6 +424,44 @@ InvalidCrew(() => new UtilityCandidate(AiActionType.CarryAmmo, x: float.Positive
 InvalidCrew(() => UtilityRules.Evaluate(Context(), choices, learned, _ => float.NaN), "Reject nonfinite policy weight");
 InvalidCrew(() => restored.Import(new UtilityLearningData { weights = new[] { new UtilityWeightData { action = AiActionType.CarryAmmo, weight = 1 }, new UtilityWeightData { action = AiActionType.CarryAmmo, weight = 2 } } }), "Reject duplicate imported weights atomically");
 Check(restored.GetWeight(AiActionType.DefendShip) == learned.GetWeight(AiActionType.DefendShip), "Invalid import preserves previous complete profile");
+// 船員の戦闘不能と復帰の共通状態機械を確認します。
+{
+    int downedCalls = 0, respawnCalls = 0;
+    var life = new CrewLifecycleModel(2f, () => downedCalls++, () => respawnCalls++);
+    Check(life.State == CrewLifecycleState.Active && life.IsTargetable, "Crew starts active and targetable");
+    Check(life.Down() && life.State == CrewLifecycleState.Downed && !life.IsTargetable && downedCalls == 1, "Downed crew is not targetable and cleanup runs once");
+    Check(!life.Down() && downedCalls == 1, "Repeated defeat does not rerun cleanup");
+    life.Tick(1f);
+    Check(life.State == CrewLifecycleState.Respawning && !life.IsTargetable && life.RemainingSeconds == 1f && respawnCalls == 0, "Respawning crew waits");
+    life.Tick(1f);
+    Check(life.State == CrewLifecycleState.Active && life.IsTargetable && respawnCalls == 1, "Crew respawns after the configured time");
+    Check(life.Down() && downedCalls == 2, "A respawned crew can be defeated again");
+    life.DisableRespawn();
+    life.Tick(100f);
+    Check(life.State == CrewLifecycleState.Downed && respawnCalls == 1, "No respawn after the core is destroyed");
+    var instant = new CrewLifecycleModel(0f);
+    instant.Down();
+    instant.Tick(0.01f);
+    Check(instant.State == CrewLifecycleState.Active, "Zero respawn time returns on the next tick");
+    foreach (var bad in new[] { -1f, float.NaN, float.PositiveInfinity })
+        Check(Throws(() => new CrewLifecycleModel(bad)), "Reject respawn time " + bad);
+    Check(Throws(() => life.Tick(0)), "Reject zero delta");
+    // 復帰処理が失敗しても行動可能にならず、次の更新で再試行されます。
+    var attempts = 0;
+    var flaky = new CrewLifecycleModel(0f, null, () => { if (++attempts == 1) throw new InvalidOperationException("respawn failed"); });
+    flaky.Down();
+    try { flaky.Tick(0.1f); } catch (InvalidOperationException) { }
+    Check(flaky.State == CrewLifecycleState.Respawning && !flaky.IsTargetable, "Failed respawn keeps the crew waiting");
+    flaky.Tick(0.1f);
+    Check(flaky.State == CrewLifecycleState.Active && attempts == 2, "Respawn is retried on the next tick");
+}
+
+bool Throws(Action action)
+{
+    try { action(); return false; }
+    catch (ArgumentOutOfRangeException) { return true; }
+}
+
 Console.WriteLine($"{checks} gameplay checks passed.");
 sealed record TestAmmo(float Damage, float Weight = 1) : IAmmo;
 sealed class TestCrew(TeamSide side) : IControlledCrew

@@ -14,6 +14,8 @@ internal static class ProjectileChecks
         ClashScenarios();
         TrajectoryScenarios();
         AmmoShotScenarios();
+        EffectScenarios();
+        ScopedScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
     }
@@ -303,5 +305,87 @@ internal static class ProjectileChecks
         Rejects(() => new ProjectileTrajectory(ProjectileTrajectoryKind.Arc, -3e38f, 0, 3e38f, 0), "Arc beyond the float range rejected");
         var zero = new CharacterProjectileModel(1, 1, 1, 1, 5, 1, null, null, ProjectileTrajectoryKind.Arc);
         Check(zero.Advance(0.1f) == ProjectileFlightStatus.Landed && !float.IsNaN(zero.X), "Zero-length flight lands without NaN");
+    }
+
+    private static CharacterProjectileModel Tagged(int hardness, string tag, IProjectileClashEffect effect = null)
+    {
+        var shot = new CharacterProjectileModel(0, 0, 99, 0, 1, hardness, null, effect);
+        return tag == null ? shot : shot.AddTag(tag);
+    }
+
+    /* { 処理: 効果が弾名でなくタグで働くこと、評価順、再利用、素材規則の独立登録を確認します。 } */
+    private static void EffectScenarios()
+    {
+        // 同じ盾割り効果を、別々の弾が共有して使えます。
+        var breaker = new BreakTaggedProjectileEffect("shield");
+        var a = Tagged(1, null, breaker);
+        var b = Tagged(1, null, breaker);
+        var shieldA = Tagged(5, "shield");
+        var shieldB = Tagged(5, "shield");
+        CharacterProjectileModel.UpdateContact(a, shieldA, true);
+        CharacterProjectileModel.UpdateContact(b, shieldB, true);
+        Check(shieldA.Status == ProjectileFlightStatus.Destroyed && shieldB.Status == ProjectileFlightStatus.Destroyed && a.RemainingHardness == 1 && b.RemainingHardness == 1, "Breaker is reusable and not consumed");
+
+        // タグが違う相手には働かず、通常の耐久処理になります。
+        var plain = Tagged(2, "arrow");
+        var breaker2 = Tagged(1, null, breaker);
+        CharacterProjectileModel.UpdateContact(breaker2, plain, true);
+        Check(breaker2.Status == ProjectileFlightStatus.Destroyed && plain.RemainingHardness == 1, "Untagged target falls back to normal clash");
+
+        // チェーンは登録順で評価し、最初に上書きした効果で止まります。
+        var chain = new ClashEffectChain().Add(new IgnoreTaggedProjectileEffect("ghost")).Add(new BreakTaggedProjectileEffect("ghost"));
+        var owner = Tagged(1, null, chain);
+        var ghost = Tagged(1, "ghost");
+        CharacterProjectileModel.UpdateContact(owner, ghost, true);
+        Check(ghost.Status == ProjectileFlightStatus.Flying && owner.Status == ProjectileFlightStatus.Flying, "First registered effect wins");
+        var reversed = new ClashEffectChain().Add(new BreakTaggedProjectileEffect("ghost")).Add(new IgnoreTaggedProjectileEffect("ghost"));
+        var owner2 = Tagged(1, null, reversed);
+        var ghost2 = Tagged(1, "ghost");
+        CharacterProjectileModel.UpdateContact(owner2, ghost2, true);
+        Check(ghost2.Status == ProjectileFlightStatus.Destroyed, "Order decides the result");
+
+        // 素材規則は弾定義の外で登録でき、順序に依存しません。
+        var rules = new AmmoCombinationRules();
+        rules.Register(new[] { "fire", "arrow" }, "fire-arrow");
+        Check(rules.TryResolve(new[] { "arrow", "fire" }, out var result) && result == "fire-arrow", "Combination ignores order");
+        Check(!rules.TryResolve(new[] { "fire", "stone" }, out _), "Unknown combination not resolved");
+        var duplicateRejected = false;
+        try { rules.Register(new[] { "arrow", "fire" }, "other"); } catch (InvalidOperationException) { duplicateRejected = true; }
+        Check(duplicateRejected, "Duplicate combination rejected");
+        Rejects(() => rules.Register(new[] { "only" }, "x"), "Single ingredient rejected");
+        Rejects(() => new BreakTaggedProjectileEffect(" "), "Blank tag rejected");
+        Check(!breaker.PreClash(a, null!), "Null target is ignored");
+        var tricky = new AmmoCombinationRules();
+        tricky.Register(new[] { "a001fb", "c" }, "x");
+        Check(!tricky.TryResolve(new[] { "a", "b001fc" }, out _), "Separator inside ids does not collide");
+        tricky.Register(new[] { "a", "a", "b" }, "y");
+        Check(tricky.TryResolve(new[] { "b", "a", "a" }, out var multi) && multi == "y" && !tricky.TryResolve(new[] { "a", "b" }, out _), "Quantities are distinguished");
+        Rejects(() => new ClashEffectChain().Add(null!), "Null effect rejected");
+    }
+
+    private sealed class Counter : ICarryEffect, IDeckPassiveEffect
+    {
+        public int Held, Released, Entered, Left;
+        public void OnHeld(string holderId) => Held++;
+        public void OnReleased(string holderId) => Released++;
+        public void OnEnterDeck(string deckId) => Entered++;
+        public void OnLeaveDeck(string deckId) => Left++;
+    }
+
+    /* { 処理: 所持効果とデッキ効果が独立して有効化・無効化され、通知が1回ずつであることを確認します。 } */
+    private static void ScopedScenarios()
+    {
+        var effect = new Counter();
+        var carry = new ScopedEffectLedger<ICarryEffect>((e, id) => e.OnHeld(id), (e, id) => e.OnReleased(id));
+        var deck = new ScopedEffectLedger<IDeckPassiveEffect>((e, id) => e.OnEnterDeck(id), (e, id) => e.OnLeaveDeck(id));
+        Check(carry.Activate("crew-1", effect) && !carry.Activate("crew-1", effect) && effect.Held == 1, "Carry notified once");
+        Check(deck.Activate("deck-1", effect) && effect.Entered == 1 && effect.Held == 1, "Deck passive is independent of carry");
+        Check(carry.Deactivate("crew-1", effect) && !carry.Deactivate("crew-1", effect) && effect.Released == 1 && effect.Left == 0, "Releasing carry leaves deck passive");
+        Check(deck.CountFor("deck-1") == 1 && deck.Clear("deck-1") == 1 && effect.Left == 1 && deck.CountFor("deck-1") == 0, "Clear deactivates everything");
+        Rejects(() => carry.Activate(" ", effect), "Blank owner rejected");
+        Rejects(() => carry.Activate("crew-2", null!), "Null effect rejected by ledger");
+        var failing = new ScopedEffectLedger<ICarryEffect>((e, id) => throw new ArgumentException("boom"), (e, id) => { });
+        Rejects(() => failing.Activate("crew-3", effect), "Failing notification propagates");
+        Check(failing.CountFor("crew-3") == 0, "Failed activation is rolled back");
     }
 }
