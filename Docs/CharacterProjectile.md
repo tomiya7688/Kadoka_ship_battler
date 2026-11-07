@@ -45,3 +45,14 @@ remainingHardness <= 0 -> Destroyed
 ## 着地点
 
 現状は敵船中心への着地です。最終設計ではShipDefinitionの侵入用着地Anchorを使います。
+
+## 弾道（Direct / Arc）
+
+最終確認日 2026-11-07。弾道は `ProjectileTrajectory`（`Assets/KadokaShipBattler/Scripts/Runtime/Ammo`）が2D上の通り道として表します。
+
+- Direct: 発射位置から目標への直線です。
+- Arc: 直線に、頂点の高さが距離の35%の放物線を足した山なりの曲線です。
+- 砲台ごとに `CannonController.TrajectoryKind` で選びます。
+- 高度による衝突の有無は使いません。2D上で当たり判定が実際に重なった時刻にだけ衝突します。軌道が交差しても通過時刻が違えば衝突しません（`Tools/CI/Projectiles` で検証）。
+
+通常砲弾の AmmoProjectile 化は Issue #38 の残件です。

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using KadokaShipBattler.Ammo;
 
 namespace KadokaShipBattler.Characters
 {
@@ -34,6 +35,9 @@ namespace KadokaShipBattler.Characters
     {
         private readonly float targetX;
         private readonly float targetY;
+        private readonly ProjectileTrajectory trajectory;
+        // 軌道上の進行度（0〜1）。
+        private double progress;
         private readonly float speed;
         private readonly IProjectileBehaviour behaviour;
         private readonly IProjectileClashEffect clashEffect;
@@ -49,7 +53,8 @@ namespace KadokaShipBattler.Characters
 
         /* { 処理: 発射位置、着弾目標、速度、衝突耐久で飛翔を開始します。例外: 非有限値、速度0以下、耐久1未満を拒否します。 } */
         public CharacterProjectileModel(float startX, float startY, float targetX, float targetY, float speed,
-            int hardness, IProjectileBehaviour behaviour = null, IProjectileClashEffect clashEffect = null)
+            int hardness, IProjectileBehaviour behaviour = null, IProjectileClashEffect clashEffect = null,
+            ProjectileTrajectoryKind trajectoryKind = ProjectileTrajectoryKind.Direct)
         {
             // 不正値は飛行中に位置を壊すため、構築時に弾きます。
             if (!IsFinite(startX) || !IsFinite(startY) || !IsFinite(targetX) || !IsFinite(targetY))
@@ -65,6 +70,7 @@ namespace KadokaShipBattler.Characters
             RemainingHardness = hardness;
             this.behaviour = behaviour;
             this.clashEffect = clashEffect;
+            trajectory = new ProjectileTrajectory(trajectoryKind, startX, startY, targetX, targetY);
         }
 
         /* { 処理: 飛行を進め、目標に届けば着地にします。引数: deltaTimeは有限の正の秒数です。戻り値: 現在の状態です。 } */
@@ -77,10 +83,8 @@ namespace KadokaShipBattler.Characters
             if (!IsFinite(multiplier) || multiplier < 0) multiplier = 1f;
             // 極端に大きい座標や速度でもfloatの範囲を超えないよう、中間計算はdoubleで行います。
             var step = (double)speed * multiplier * deltaTime;
-            var dx = (double)targetX - X;
-            var dy = (double)targetY - Y;
-            var distance = Math.Sqrt(dx * dx + dy * dy);
-            if (distance <= step)
+            // 軌道の長さに対する進行度を進め、1に届けば着地にします。
+            if (trajectory.Length <= step || progress + step / trajectory.Length >= 1.0)
             {
                 X = targetX;
                 Y = targetY;
@@ -88,8 +92,10 @@ namespace KadokaShipBattler.Characters
                 contacts.Clear();
                 return Status;
             }
-            X = (float)(X + dx / distance * step);
-            Y = (float)(Y + dy / distance * step);
+            progress += step / trajectory.Length;
+            var position = trajectory.PositionAt(progress);
+            X = (float)position.X;
+            Y = (float)position.Y;
             return Status;
         }
 

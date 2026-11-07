@@ -154,5 +154,23 @@ namespace KadokaShipBattler.Tests
             Assert.AreNotEqual(ProjectileFlightStatus.Destroyed, first.Model.Status);
             Assert.IsTrue(hard.IsAlive);
         }
+
+        [UnityTest]
+        public IEnumerator ArcCannonLaunchesAlongACurveAndStillLands()
+        {
+            var player = Ship(TeamSide.Player, 0);
+            var enemy = Ship(TeamSide.Enemy, 6);
+            var cannon = Cannon(player, enemy);
+            cannon.TrajectoryKind = KadokaShipBattler.Ammo.ProjectileTrajectoryKind.Arc;
+            var passenger = Passenger(TeamSide.Player, 2);
+            Assert.IsTrue(cannon.TryLoadCharacter(passenger));
+            Assert.IsTrue(cannon.FireAt(enemy));
+            yield return new WaitForSeconds(0.5f);
+            // 直線なら目標へ向かう途中でもY=0のままです。山なりなら持ち上がります。
+            Assert.Greater(passenger.transform.position.y, 0.3f);
+            yield return new WaitForSeconds(1.5f);
+            var projectile = passenger.GetComponent<CharacterProjectile>();
+            Assert.AreEqual(ProjectileFlightStatus.Landed, projectile.Model.Status);
+        }
     }
 }
