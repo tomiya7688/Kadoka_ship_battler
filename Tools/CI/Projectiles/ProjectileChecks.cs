@@ -249,6 +249,12 @@ internal static class ProjectileChecks
         Check(duplicateRejected, "Duplicate combination rejected");
         Rejects(() => rules.Register(new[] { "only" }, "x"), "Single ingredient rejected");
         Rejects(() => new BreakTaggedProjectileEffect(" "), "Blank tag rejected");
+        Check(!breaker.PreClash(a, null!), "Null target is ignored");
+        var tricky = new AmmoCombinationRules();
+        tricky.Register(new[] { "a001fb", "c" }, "x");
+        Check(!tricky.TryResolve(new[] { "a", "b001fc" }, out _), "Separator inside ids does not collide");
+        tricky.Register(new[] { "a", "a", "b" }, "y");
+        Check(tricky.TryResolve(new[] { "b", "a", "a" }, out var multi) && multi == "y" && !tricky.TryResolve(new[] { "a", "b" }, out _), "Quantities are distinguished");
         Rejects(() => new ClashEffectChain().Add(null!), "Null effect rejected");
     }
 }

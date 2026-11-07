@@ -46,7 +46,7 @@ namespace KadokaShipBattler.Ammo
 
         public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other)
         {
-            if (!other.HasTag(tag)) return false;
+            if (other == null || !other.HasTag(tag)) return false;
             other.Destroy();
             return true;
         }
@@ -64,12 +64,12 @@ namespace KadokaShipBattler.Ammo
             this.tag = tag;
         }
 
-        public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other) => other.HasTag(tag);
+        public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other) => other != null && other.HasTag(tag);
     }
 
     /* {
         責務: 複数の素材の組み合わせから結果の弾IDを引く、弾定義の外に置く独立した規則表です。
-        前提: 順序なし（素材の集合が一致すれば成立）。同じ素材集合は一度だけ登録できます。
+        前提: 順序なし。同じ素材IDの個数も区別する（多重集合）。同じ素材の組は一度だけ登録できます。
         フィールド: rules=素材集合のキーから結果IDへの表。
         計算量: 登録・検索とも素材数に比例します。
     } */
