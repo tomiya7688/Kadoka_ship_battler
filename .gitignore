@@ -13,8 +13,10 @@
 .vs/
 .idea/
 .vscode/
-*.csproj
-*.sln
+/*.csproj
+/*.sln
+/Tools/**/bin/
+/Tools/**/obj/
 *.suo
 *.user
 *.userprefs
@@ -32,3 +34,6 @@ Thumbs.db
 
 # Crash reports
 sysinfo.txt
+
+# Local review checklist (keep personal review notes out of the repository)
+/レビュー基準.md

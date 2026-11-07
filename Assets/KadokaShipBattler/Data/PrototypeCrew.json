@@ -1,0 +1,46 @@
+{
+  "characters": [
+    {
+      "id": "leader", "displayName": "Leader",
+      "maxHp": 100, "moveSpeed": 4,
+      "carryCapacity": 5, "maxCarryCount": 2,
+      "attackMode": 1, "attackDamage": 25, "attackRange": 0.9,
+      "projectileHardness": 2, "canFly": false, "canPhase": false,
+      "capabilities": 23, "combatSkill": 5, "carrySkill": 5
+    },
+    {
+      "id": "gunner", "displayName": "Gunner",
+      "maxHp": 70, "moveSpeed": 2.8,
+      "carryCapacity": 3, "maxCarryCount": 1,
+      "attackMode": 2, "attackDamage": 40, "attackRange": 2.5,
+      "projectileHardness": 1, "canFly": false, "canPhase": false,
+      "capabilities": 23, "combatSkill": 8, "carrySkill": 3
+    },
+    {
+      "id": "carrier", "displayName": "Carrier",
+      "maxHp": 90, "moveSpeed": 3.5,
+      "carryCapacity": 9, "maxCarryCount": 3,
+      "attackMode": 0, "attackDamage": 0, "attackRange": 0,
+      "projectileHardness": 2, "canFly": false, "canPhase": false,
+      "capabilities": 22, "combatSkill": 0, "carrySkill": 9
+    },
+    {
+      "id": "scout", "displayName": "Scout",
+      "maxHp": 60, "moveSpeed": 5,
+      "carryCapacity": 3, "maxCarryCount": 1,
+      "attackMode": 1, "attackDamage": 15, "attackRange": 0.9,
+      "projectileHardness": 1, "canFly": true, "canPhase": true,
+      "capabilities": 23, "combatSkill": 3, "carrySkill": 3
+    },
+    {
+      "id": "defender", "displayName": "Defender",
+      "maxHp": 180, "moveSpeed": 2,
+      "carryCapacity": 0, "maxCarryCount": 0,
+      "attackMode": 1, "attackDamage": 50, "attackRange": 0.9,
+      "projectileHardness": 5, "canFly": false, "canPhase": false,
+      "capabilities": 17, "combatSkill": 10, "carrySkill": 0
+    }
+  ],
+  "player": { "slots": ["leader", "gunner", "carrier", "scout", "defender"] },
+  "enemy": { "slots": ["leader", "gunner", "carrier", "scout", "defender"] }
+}

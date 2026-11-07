@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Policies/**/*.cs" />
+    <Compile Remove="Coordination/**/*.cs" />
+    <Compile Remove="Tactics/**/*.cs" />
+    <Compile Remove="Projectiles/**/*.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/BattleModel.cs" Link="BattleModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/TeamSide.cs" Link="TeamSide.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/CrewControlState.cs" Link="CrewControlState.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CrewDefinitions.cs" Link="CrewDefinitions.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CharacterCapability.cs" Link="CharacterCapability.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/AmmoDeckModel.cs" Link="AmmoDeckModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/VisionModel.cs" Link="VisionModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/UtilityModel.cs" Link="UtilityModel.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/AiActionType.cs" Link="AiActionType.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Navigation/NavigationModel.cs" Link="NavigationModel.cs" />
+    <None Include="../../Assets/KadokaShipBattler/Data/PrototypeNavigation.json" Link="PrototypeNavigation.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../Assets/KadokaShipBattler/Data/PrototypeCrew.json" Link="PrototypeCrew.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../Assets/KadokaShipBattler/Data/PrototypeAmmo.json" Link="PrototypeAmmo.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

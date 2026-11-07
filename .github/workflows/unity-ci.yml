@@ -1,0 +1,97 @@
+name: Unity CI
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gameplay-checks:
+    name: Compile and check gameplay rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile production battle model and run gameplay checks
+        run: dotnet run --project Tools/CI/GameplayChecks.csproj --configuration Release
+      - name: Compile production policies and run policy checks
+        run: dotnet run --project Tools/CI/Policies/PolicyChecks.csproj --configuration Release
+      - name: Compile production coordination and run coordination checks
+        run: dotnet run --project Tools/CI/Coordination/CoordinationChecks.csproj --configuration Release
+      - name: Compile production enemy tactics and run tactics checks
+        run: dotnet run --project Tools/CI/Tactics/TacticsChecks.csproj --configuration Release
+      - name: Compile production character projectile model and run projectile checks
+        run: dotnet run --project Tools/CI/Projectiles/ProjectileChecks.csproj --configuration Release
+      - name: Validate Unity assets and configuration
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          manifest = json.loads(Path('Packages/manifest.json').read_text(encoding='utf-8-sig'))
+          assert 'com.unity.modules.physics2d' in manifest['dependencies']
+          for asset in Path('Assets/KadokaShipBattler').rglob('*'):
+              if asset.is_file() and asset.suffix in ('.cs', '.asmdef', '.unity', '.json'):
+                  assert Path(str(asset) + '.meta').exists(), f'Missing meta: {asset}'
+              if asset.suffix == '.asmdef':
+                  json.loads(asset.read_text(encoding='utf-8-sig'))
+          scene = 'Assets/KadokaShipBattler/Scenes/BattlePrototype.unity'
+          assert Path(scene).exists()
+          # Keep shared instructions in the repository and the personal checklist ignored.
+          assert Path('AGENTS.md').is_file()
+          assert Path('コーディング規約.md').is_file()
+          assert '/レビュー基準.md' in Path('.gitignore').read_text(encoding='utf-8-sig').splitlines()
+          assert not Path('レビュー基準.md').exists(), 'Personal review criteria must remain local.'
+          assert scene in Path('ProjectSettings/EditorBuildSettings.asset').read_text(encoding='utf-8-sig')
+          scene_text = Path(scene).read_text(encoding='utf-8-sig')
+          for field, filename in [('crewSetup', 'PrototypeCrew.json'), ('ammoSetup', 'PrototypeAmmo.json'), ('navigationSetup', 'PrototypeNavigation.json')]:
+              asset = Path('Assets/KadokaShipBattler/Data') / filename
+              json.loads(asset.read_text(encoding='utf-8-sig'))
+              meta_text = Path(str(asset) + '.meta').read_text(encoding='utf-8-sig')
+              guid = re.search(r'^guid: ([0-9a-f]{32})$', meta_text, re.MULTILINE).group(1)
+              assert re.search(rf'^  {field}: .*guid: {guid}', scene_text, re.MULTILINE), f'Missing scene reference: {field}'
+          print('Unity assets and configuration valid.')
+          PY
+
+  unity-playmode-tests:
+    name: Unity PlayMode integration
+    if: ${{ vars.RUN_UNITY_TESTS == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: gameplay-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-${{ runner.os }}-
+      - name: Run PlayMode tests
+        id: tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: .
+          unityVersion: auto
+          testMode: PlayMode
+          coverageEnabled: false
+      - name: Upload Unity results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity PlayMode results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: ignore
