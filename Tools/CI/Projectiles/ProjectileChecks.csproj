@@ -10,5 +10,6 @@
     <Compile Include="ProjectileChecks.cs" />
     <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CharacterProjectileModel.cs" />
     <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileTrajectory.cs" />
+    <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileEffects.cs" />
   </ItemGroup>
 </Project>
