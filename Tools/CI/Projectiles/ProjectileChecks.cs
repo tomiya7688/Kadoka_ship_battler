@@ -196,5 +196,8 @@ internal static class ProjectileChecks
 
         Rejects(() => new ProjectileTrajectory((ProjectileTrajectoryKind)99, 0, 0, 1, 1), "Undefined kind rejected");
         Rejects(() => new ProjectileTrajectory(ProjectileTrajectoryKind.Arc, float.NaN, 0, 1, 1), "NaN trajectory rejected");
+        Rejects(() => new ProjectileTrajectory(ProjectileTrajectoryKind.Arc, -3e38f, 0, 3e38f, 0), "Arc beyond the float range rejected");
+        var zero = new CharacterProjectileModel(1, 1, 1, 1, 5, 1, null, null, ProjectileTrajectoryKind.Arc);
+        Check(zero.Advance(0.1f) == ProjectileFlightStatus.Landed && !float.IsNaN(zero.X), "Zero-length flight lands without NaN");
     }
 }

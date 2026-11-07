@@ -31,8 +31,10 @@ namespace KadokaShipBattler.Ammo
         public ProjectileTrajectory(ProjectileTrajectoryKind kind, float startX, float startY, float targetX, float targetY)
         {
             if (!Enum.IsDefined(typeof(ProjectileTrajectoryKind), kind)) throw new ArgumentOutOfRangeException(nameof(kind));
-            if (!IsFinite(startX) || !IsFinite(startY) || !IsFinite(targetX) || !IsFinite(targetY))
-                throw new ArgumentOutOfRangeException(nameof(startX));
+            if (!IsFinite(startX)) throw new ArgumentOutOfRangeException(nameof(startX));
+            if (!IsFinite(startY)) throw new ArgumentOutOfRangeException(nameof(startY));
+            if (!IsFinite(targetX)) throw new ArgumentOutOfRangeException(nameof(targetX));
+            if (!IsFinite(targetY)) throw new ArgumentOutOfRangeException(nameof(targetY));
             Kind = kind;
             this.startX = startX;
             this.startY = startY;
@@ -43,6 +45,9 @@ namespace KadokaShipBattler.Ammo
             var dy = this.targetY - this.startY;
             Length = Math.Sqrt(dx * dx + dy * dy);
             arcHeight = kind == ProjectileTrajectoryKind.Arc ? Length * ArcHeightRatio : 0;
+            // 山なりの頂点がfloatの範囲を超えると位置が無限大になるため、構築時に拒否します。
+            if (Math.Abs(this.startY) + Math.Abs(this.targetY) + 4 * arcHeight > float.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(kind), "Arc height exceeds the float range.");
         }
 
         /* { 処理: 進行度に対する2D位置を返します。引数: progressは0〜1に丸めます。戻り値: (X, Y)です。 } */
