@@ -45,6 +45,7 @@ namespace KadokaShipBattler.Characters
             if (model == null || !enabled) return;
             // 他の弾に撃ち落とされた場合も、この更新で結果を反映します。
             if (model.Status == ProjectileFlightStatus.Destroyed) { Shootdown(); return; }
+            if (!(Time.deltaTime > 0f) || float.IsInfinity(Time.deltaTime)) return;
             model.Advance(Time.deltaTime);
             transform.position = new Vector3(model.X, model.Y, 0f);
             ResolveClashes();

@@ -49,6 +49,8 @@ namespace KadokaShipBattler.Ammo
 
         private void Tick(float deltaTime)
         {
+            // timeScale 0 などで経過時間が0や非有限のときは、飛行を進めません。
+            if (!(deltaTime > 0f) || float.IsInfinity(deltaTime)) return;
             if (model == null || model.Outcome != AmmoShotOutcome.Flying) return;
             model.Step(deltaTime);
             transform.position = new Vector3(model.Flight.X, model.Flight.Y, 0f);
