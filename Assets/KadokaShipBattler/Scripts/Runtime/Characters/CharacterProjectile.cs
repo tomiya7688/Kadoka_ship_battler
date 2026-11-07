@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using KadokaShipBattler.Ammo;
 using KadokaShipBattler.Ships;
 using UnityEngine;
@@ -13,9 +12,8 @@ namespace KadokaShipBattler.Characters
     [DisallowMultipleComponent]
     public sealed class CharacterProjectile : MonoBehaviour
     {
-        public const float ClashDistance = 0.4f;
+        public const float ClashDistance = ProjectileClashField.ClashDistance;
         public const float FlightSpeed = 6f;
-        private static readonly List<CharacterProjectile> Flying = new();
         private CharacterProjectileModel model;
         private CrewMember crew;
         private PlayerCrewController controller;
@@ -37,7 +35,7 @@ namespace KadokaShipBattler.Characters
             // 着地後に無効化された再利用コンポーネントでも、再び飛行を更新します。
             projectile.enabled = true;
             passenger.transform.position = new Vector3(from.x, from.y, 0f);
-            Flying.Add(projectile);
+            ProjectileClashField.Register(projectile.model, passenger.TeamSide);
             return projectile;
         }
 
@@ -54,22 +52,13 @@ namespace KadokaShipBattler.Characters
             else if (model.Status == ProjectileFlightStatus.Destroyed) Shootdown();
         }
 
-        /* { 処理: 近くを飛ぶ別のキャラクター弾との重なりをモデルへ渡します。重なり始めの1回だけ耐久が減ります。 } */
-        private void ResolveClashes()
-        {
-            foreach (var other in Flying)
-            {
-                if (other == this || other.model == null || other.model.Status != ProjectileFlightStatus.Flying) continue;
-                var offset = new Vector2(other.model.X - model.X, other.model.Y - model.Y);
-                // 重なりが外れた場合も渡し、次の接触を数え直せるようにします。
-                CharacterProjectileModel.UpdateContact(model, other.model, offset.sqrMagnitude <= ClashDistance * ClashDistance);
-            }
-        }
+        /* { 処理: 飛行中の敵対する弾（通常砲弾・キャラクター弾）との重なりをモデルへ渡します。重なり始めの1回だけ耐久が減ります。 } */
+        private void ResolveClashes() => ProjectileClashField.Resolve(model, crew.TeamSide);
 
         /* { 処理: 敵船内へ着地した船員を行動へ復帰させます。 } */
         private void Land()
         {
-            Flying.Remove(this);
+            ProjectileClashField.Unregister(model);
             // 着地した船員は、相手船の船体が無傷でもその部屋を移動できます。
             if (controller != null)
             {
@@ -82,11 +71,11 @@ namespace KadokaShipBattler.Characters
         /* { 処理: 撃ち落とされた船員を戦闘不能にします。 } */
         private void Shootdown()
         {
-            Flying.Remove(this);
+            ProjectileClashField.Unregister(model);
             crew.ApplyDamage(crew.Definition.MaxHp);
             enabled = false;
         }
 
-        private void OnDestroy() => Flying.Remove(this);
+        private void OnDestroy() => ProjectileClashField.Unregister(model);
     }
 }

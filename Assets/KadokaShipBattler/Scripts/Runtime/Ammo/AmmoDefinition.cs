@@ -4,7 +4,7 @@ using KadokaShipBattler.Core;
 namespace KadokaShipBattler.Ammo
 {
     [CreateAssetMenu(menuName = "Kadoka Ship Battler/Ammo Definition", fileName = "AmmoDefinition")]
-    public sealed class AmmoDefinition : ScriptableObject, IAmmo
+    public sealed class AmmoDefinition : ScriptableObject, IHardAmmo
     {
         [SerializeField] private string ammoId = "ammo";
         [SerializeField] private string displayName = "Ammo";

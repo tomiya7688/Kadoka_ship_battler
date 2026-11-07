@@ -10,5 +10,9 @@
     <Compile Include="ProjectileChecks.cs" />
     <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CharacterProjectileModel.cs" />
     <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileTrajectory.cs" />
+    <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/AmmoShotModel.cs" />
+    <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileClashField.cs" />
+    <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Core/BattleModel.cs" />
+    <Compile Include="../../../Assets/KadokaShipBattler/Scripts/Runtime/Core/TeamSide.cs" />
   </ItemGroup>
 </Project>

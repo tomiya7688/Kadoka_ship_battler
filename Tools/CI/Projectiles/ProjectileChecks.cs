@@ -1,5 +1,6 @@
 using KadokaShipBattler.Ammo;
 using KadokaShipBattler.Characters;
+using KadokaShipBattler.Core;
 
 /* { 責務: キャラクター弾の飛行、衝突、着地、拡張口の本番モデルをCIで検証します。 } */
 internal static class ProjectileChecks
@@ -12,6 +13,7 @@ internal static class ProjectileChecks
         FlightScenarios();
         ClashScenarios();
         TrajectoryScenarios();
+        AmmoShotScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
     }
@@ -147,6 +149,108 @@ internal static class ProjectileChecks
         landed.Advance(1);
         CharacterProjectileModel.UpdateContact(landed, Shot(9), true);
         Check(landed.Status == ProjectileFlightStatus.Landed && landed.RemainingHardness == 1, "Landed shot ignores clashes");
+    }
+
+    private sealed class FakeShell : ITrackedAmmo, IHardAmmo
+    {
+        public FakeShell(float damage, float hardness) { Damage = damage; Hardness = hardness; }
+        public float Damage { get; }
+        public float Weight => 1;
+        public float Hardness { get; }
+        public bool CanCarry => true;
+        public int Returns;
+        public bool TryCarry() => true;
+        public bool TryLoad() => true;
+        public bool ReturnToDeck() { Returns++; return true; }
+    }
+
+    private static AmmoShotModel Shell(FakeShell ammo, TeamSide side, ShipBattleState target, float sx, float sy, float gx, float gy,
+        ProjectileTrajectoryKind kind = ProjectileTrajectoryKind.Direct) => new(ammo, side, target, sx, sy, gx, gy, kind);
+
+    /* { 処理: 通常砲弾の飛翔体化（発射時は無傷、着弾でダメージ、敵対弾との衝突耐久、味方は衝突しない、軌道を問わない重なり衝突）を確認します。 } */
+    private static void AmmoShotScenarios()
+    {
+        ProjectileClashField.Clear();
+        // 発射時にはダメージを与えず、着弾でだけ船体を減らし、山札へ1回だけ返します。
+        var enemyShip = new ShipBattleState(TeamSide.Enemy, 100, 30);
+        var cannon = new CannonState();
+        var carry = new AmmoCarryState();
+        var plain = new FakeShell(25, 1);
+        Check(carry.TryPickup(plain, true) && cannon.TryLoadFrom(carry, new ShipBattleState(TeamSide.Player, 100, 30), TeamSide.Player), "Shell loads");
+        var owner = new ShipBattleState(TeamSide.Player, 100, 30);
+        Check(cannon.Detach(owner, owner) == null && cannon.LoadedAmmo == plain, "Detach rejects own ship and keeps the shell loaded");
+        var launched = cannon.Detach(owner, enemyShip);
+        Check(ReferenceEquals(launched, plain) && cannon.LoadedAmmo == null, "Detach hands the shell over");
+        Check(enemyShip.CurrentHull == 100 && plain.Returns == 0, "Launch itself deals no damage and keeps the round out");
+        var flight = Shell(plain, TeamSide.Player, enemyShip, 0, 0, 10, 0);
+        flight.Step(0.5f);
+        Check(flight.Settle() == AmmoShotOutcome.Flying && enemyShip.CurrentHull == 100, "Shell in flight deals no damage");
+        flight.Step(0.6f);
+        Check(flight.Settle() == AmmoShotOutcome.Impacted && enemyShip.CurrentHull == 75 && plain.Returns == 1, "Impact damages hull and returns the round");
+        Check(flight.Settle() == AmmoShotOutcome.Impacted && enemyShip.CurrentHull == 75 && plain.Returns == 1, "Outcome is settled only once");
+        flight.Cancel();
+        Check(plain.Returns == 1, "Cancel after impact does nothing");
+
+        // 敵対する硬さ1同士は両方消え、どちらも着弾しません。
+        var targetA = new ShipBattleState(TeamSide.Player, 100, 30);
+        var targetB = new ShipBattleState(TeamSide.Enemy, 100, 30);
+        var left = new FakeShell(10, 1);
+        var right = new FakeShell(10, 1);
+        var a = Shell(left, TeamSide.Player, targetB, 0, 0, 10, 0);
+        var b = Shell(right, TeamSide.Enemy, targetA, 10, 0, 0, 0);
+        ProjectileClashField.Register(a.Flight, a.Side);
+        ProjectileClashField.Register(b.Flight, b.Side);
+        for (var i = 0; i < 40 && a.Outcome == AmmoShotOutcome.Flying; i++)
+        {
+            a.Step(0.05f); b.Step(0.05f);
+            ProjectileClashField.Resolve(a.Flight, a.Side); ProjectileClashField.Resolve(b.Flight, b.Side);
+            a.Settle(); b.Settle();
+        }
+        Check(a.Outcome == AmmoShotOutcome.Intercepted && b.Outcome == AmmoShotOutcome.Intercepted, "Equal hardness shells destroy each other");
+        Check(targetA.CurrentHull == 100 && targetB.CurrentHull == 100 && left.Returns == 1 && right.Returns == 1, "Intercepted shells deal no damage and return to the deck");
+
+        // 硬さ3は硬さ1を迎撃し、残り耐久2で飛び続けて着弾します。
+        ProjectileClashField.Clear();
+        var heavyTarget = new ShipBattleState(TeamSide.Enemy, 100, 30);
+        var heavy = Shell(new FakeShell(40, 3), TeamSide.Player, heavyTarget, 0, 0, 10, 0);
+        var light = Shell(new FakeShell(10, 1), TeamSide.Enemy, targetA, 10, 0, 0, 0);
+        ProjectileClashField.Register(heavy.Flight, heavy.Side);
+        ProjectileClashField.Register(light.Flight, light.Side);
+        for (var i = 0; i < 60 && heavy.Outcome == AmmoShotOutcome.Flying; i++)
+        {
+            heavy.Step(0.05f); light.Step(0.05f);
+            ProjectileClashField.Resolve(heavy.Flight, heavy.Side); ProjectileClashField.Resolve(light.Flight, light.Side);
+            heavy.Settle(); light.Settle();
+        }
+        Check(light.Outcome == AmmoShotOutcome.Intercepted && heavy.Outcome == AmmoShotOutcome.Impacted && heavyTarget.CurrentHull == 60, "Hardness 3 survives a hardness 1 clash and still lands");
+        Check(heavy.Flight.RemainingHardness == 2, "A clash costs the harder shell one point");
+
+        // 味方同士の砲弾は、重なっても衝突しません。
+        ProjectileClashField.Clear();
+        var friend1 = Shell(new FakeShell(10, 1), TeamSide.Player, targetB, 0, 0, 10, 0);
+        var friend2 = Shell(new FakeShell(10, 1), TeamSide.Player, targetB, 0, 0, 10, 0);
+        ProjectileClashField.Register(friend1.Flight, friend1.Side);
+        ProjectileClashField.Register(friend2.Flight, friend2.Side);
+        friend1.Step(0.2f); friend2.Step(0.2f);
+        ProjectileClashField.Resolve(friend1.Flight, friend1.Side);
+        Check(friend1.Flight.RemainingHardness == 1 && friend2.Flight.RemainingHardness == 1, "Allied shells never clash");
+
+        // Direct と Arc は、軌道の種類に関係なく、同時刻に重なれば衝突します。通る時刻が違えば衝突しません。
+        ProjectileClashField.Clear();
+        var overlapA = Shell(new FakeShell(10, 1), TeamSide.Player, targetB, 0, 0, 10, 0, ProjectileTrajectoryKind.Arc);
+        var overlapB = Shell(new FakeShell(10, 1), TeamSide.Enemy, targetA, 0.1f, 0, 10, 0);
+        ProjectileClashField.Clear();
+        ProjectileClashField.Register(overlapA.Flight, overlapA.Side);
+        ProjectileClashField.Register(overlapB.Flight, overlapB.Side);
+        ProjectileClashField.Resolve(overlapA.Flight, overlapA.Side);
+        Check(overlapA.Flight.Status == ProjectileFlightStatus.Destroyed && overlapB.Flight.Status == ProjectileFlightStatus.Destroyed, "Overlapping Arc and Direct shells clash");
+
+        // 硬さの換算: 硬さのない弾・不正値は1、小数は四捨五入。
+        Check(AmmoShotModel.HardnessOf(new FakeShell(1, 2.4f)) == 2 && AmmoShotModel.HardnessOf(new FakeShell(1, 2.5f)) == 3, "Hardness rounds to an integer");
+        Check(AmmoShotModel.HardnessOf(new FakeShell(1, 0)) == 1 && AmmoShotModel.HardnessOf(new FakeShell(1, float.NaN)) == 1 &&
+            AmmoShotModel.HardnessOf(new FakeShell(1, float.PositiveInfinity)) == 1000, "Invalid hardness is clamped");
+        Rejects(() => Shell(new FakeShell(1, 1), TeamSide.Player, null!, 0, 0, 1, 0), "Null target is rejected");
+        ProjectileClashField.Clear();
     }
 
     /* { 処理: 不正な入力を状態を変えずに拒否することを確認します。 } */

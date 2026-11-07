@@ -55,6 +55,7 @@ namespace KadokaShipBattler.Tests
             Assert.That(cannon.TryLoadFrom(carrier), Is.True);
             Assert.That(carrier.HasAmmo, Is.False);
             Assert.That(cannon.FireAt(enemy), Is.True);
+            ShellFlight.Land();
             Assert.That(enemy.CurrentHull, Is.EqualTo(70));
             Assert.That(cannon.IsLoaded, Is.False);
         }
@@ -104,6 +105,7 @@ namespace KadokaShipBattler.Tests
                 Assert.That(player.TryInteract(), Is.True, "Fire round " + shot);
                 yield return null;
             }
+            ShellFlight.Land();
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(0));
             Assert.That(arena.IsFinished, Is.False, "Hull zero must not finish the battle");
             Assert.That(arena.EnemyShip.CurrentCore, Is.EqualTo(30));

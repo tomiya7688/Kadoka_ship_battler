@@ -1,3 +1,4 @@
+using KadokaShipBattler.Ammo;
 using System.Collections;
 using System.Linq;
 using KadokaShipBattler.AI;
@@ -81,7 +82,7 @@ namespace KadokaShipBattler.Tests
             actor.GetComponent<CrewAmmoInventory>().TryPickup(arena.PlayerAmmo.Pickups[0].Definition);
             arena.Controls.CycleNext(); arena.AllyActionsEnabled = true;
             var ai = actor.GetComponent<CrewAmmoAiController>();
-            for (var i = 0; i < 220 && arena.EnemyShip.CurrentHull == 100; i++) ai.Tick(0.02f);
+            for (var i = 0; i < 220 && arena.EnemyShip.CurrentHull == 100; i++) { ai.Tick(0.02f); AmmoProjectile.AdvanceAll(0.02f); }
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(75));
         }
         [Test] public void AgentCanNavigateToNamedRoomAndRejectUnknownRoom()
