@@ -50,6 +50,7 @@ namespace KadokaShipBattler.Characters
         public int RemainingHardness { get; private set; }
         public float FlightSeconds { get; private set; }
         public ProjectileFlightStatus Status { get; private set; } = ProjectileFlightStatus.Flying;
+        private readonly HashSet<string> tags = new();
 
         /* { 処理: 発射位置、着弾目標、速度、衝突耐久で飛翔を開始します。例外: 非有限値、速度0以下、耐久1未満を拒否します。 } */
         public CharacterProjectileModel(float startX, float startY, float targetX, float targetY, float speed,
@@ -98,6 +99,17 @@ namespace KadokaShipBattler.Characters
             Y = (float)position.Y;
             return Status;
         }
+
+        /* { 処理: 弾にタグを付けます。効果はタグで対象を選びます。例外: 空のタグを拒否します。戻り値: 自身（連結用）。 } */
+        public CharacterProjectileModel AddTag(string tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("Tag is required.", nameof(tag));
+            tags.Add(tag);
+            return this;
+        }
+
+        /* { 処理: 指定タグを持つか調べます。戻り値: 持てばtrueです。 } */
+        public bool HasTag(string tag) => tag != null && tags.Contains(tag);
 
         /* { 処理: 衝突耐久を1減らし、0以下なら撃墜します。戻り値: この呼び出しで撃墜されたらtrueです。 } */
         public bool Hit()

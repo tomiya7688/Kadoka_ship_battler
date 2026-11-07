@@ -12,6 +12,7 @@ internal static class ProjectileChecks
         FlightScenarios();
         ClashScenarios();
         TrajectoryScenarios();
+        EffectScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
     }
@@ -199,5 +200,55 @@ internal static class ProjectileChecks
         Rejects(() => new ProjectileTrajectory(ProjectileTrajectoryKind.Arc, -3e38f, 0, 3e38f, 0), "Arc beyond the float range rejected");
         var zero = new CharacterProjectileModel(1, 1, 1, 1, 5, 1, null, null, ProjectileTrajectoryKind.Arc);
         Check(zero.Advance(0.1f) == ProjectileFlightStatus.Landed && !float.IsNaN(zero.X), "Zero-length flight lands without NaN");
+    }
+
+    private static CharacterProjectileModel Tagged(int hardness, string tag, IProjectileClashEffect effect = null)
+    {
+        var shot = new CharacterProjectileModel(0, 0, 99, 0, 1, hardness, null, effect);
+        return tag == null ? shot : shot.AddTag(tag);
+    }
+
+    /* { 処理: 効果が弾名でなくタグで働くこと、評価順、再利用、素材規則の独立登録を確認します。 } */
+    private static void EffectScenarios()
+    {
+        // 同じ盾割り効果を、別々の弾が共有して使えます。
+        var breaker = new BreakTaggedProjectileEffect("shield");
+        var a = Tagged(1, null, breaker);
+        var b = Tagged(1, null, breaker);
+        var shieldA = Tagged(5, "shield");
+        var shieldB = Tagged(5, "shield");
+        CharacterProjectileModel.UpdateContact(a, shieldA, true);
+        CharacterProjectileModel.UpdateContact(b, shieldB, true);
+        Check(shieldA.Status == ProjectileFlightStatus.Destroyed && shieldB.Status == ProjectileFlightStatus.Destroyed && a.RemainingHardness == 1 && b.RemainingHardness == 1, "Breaker is reusable and not consumed");
+
+        // タグが違う相手には働かず、通常の耐久処理になります。
+        var plain = Tagged(2, "arrow");
+        var breaker2 = Tagged(1, null, breaker);
+        CharacterProjectileModel.UpdateContact(breaker2, plain, true);
+        Check(breaker2.Status == ProjectileFlightStatus.Destroyed && plain.RemainingHardness == 1, "Untagged target falls back to normal clash");
+
+        // チェーンは登録順で評価し、最初に上書きした効果で止まります。
+        var chain = new ClashEffectChain().Add(new IgnoreTaggedProjectileEffect("ghost")).Add(new BreakTaggedProjectileEffect("ghost"));
+        var owner = Tagged(1, null, chain);
+        var ghost = Tagged(1, "ghost");
+        CharacterProjectileModel.UpdateContact(owner, ghost, true);
+        Check(ghost.Status == ProjectileFlightStatus.Flying && owner.Status == ProjectileFlightStatus.Flying, "First registered effect wins");
+        var reversed = new ClashEffectChain().Add(new BreakTaggedProjectileEffect("ghost")).Add(new IgnoreTaggedProjectileEffect("ghost"));
+        var owner2 = Tagged(1, null, reversed);
+        var ghost2 = Tagged(1, "ghost");
+        CharacterProjectileModel.UpdateContact(owner2, ghost2, true);
+        Check(ghost2.Status == ProjectileFlightStatus.Destroyed, "Order decides the result");
+
+        // 素材規則は弾定義の外で登録でき、順序に依存しません。
+        var rules = new AmmoCombinationRules();
+        rules.Register(new[] { "fire", "arrow" }, "fire-arrow");
+        Check(rules.TryResolve(new[] { "arrow", "fire" }, out var result) && result == "fire-arrow", "Combination ignores order");
+        Check(!rules.TryResolve(new[] { "fire", "stone" }, out _), "Unknown combination not resolved");
+        var duplicateRejected = false;
+        try { rules.Register(new[] { "arrow", "fire" }, "other"); } catch (InvalidOperationException) { duplicateRejected = true; }
+        Check(duplicateRejected, "Duplicate combination rejected");
+        Rejects(() => rules.Register(new[] { "only" }, "x"), "Single ingredient rejected");
+        Rejects(() => new BreakTaggedProjectileEffect(" "), "Blank tag rejected");
+        Rejects(() => new ClashEffectChain().Add(null!), "Null effect rejected");
     }
 }

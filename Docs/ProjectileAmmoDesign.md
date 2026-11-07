@@ -322,3 +322,14 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 スラもり3では、通常弾の多くが硬さ1、スライダーバッジが硬さ2、鉄の盾が3、メタルキングの盾が5で、鉄の盾は3発まで相手弾を防ぐ。キャラクターのキラーマシンも硬さ2で、侵入時に1発なら耐える。したがってKadokaでは硬さを衝突耐久として扱う。
 
 また、盾を一方的に壊すハンマー、反射、周囲の弾を消す弾、デッキ常駐効果、所持中効果、複数アイテムの合成など、硬さだけでは表現できない効果が多いため、Effectを領域別に分離する。
+
+## 特殊効果の実装状況（Issue #41 第1段階、最終確認日 2026-11-07）
+
+純C#で次を実装済みです（`Assets/KadokaShipBattler/Scripts/Runtime/Ammo/ProjectileEffects.cs`）。Unityの実行状態やScriptableObjectへの変換は後続です。
+
+- `ClashEffectChain`: 衝突時の効果を登録順に評価し、最初に通常処理を上書きした効果で止めます。同じ効果を複数の弾で共有できます。
+- `BreakTaggedProjectileEffect`（盾割り）と `IgnoreTaggedProjectileEffect`（すり抜け）: 弾名ではなくタグで相手を選びます。弾には `AddTag` / `HasTag` でタグを付けます。
+- `AmmoCombinationRules`: 素材の組み合わせから結果IDを引く規則表です。弾定義の外で登録でき、素材の順序に依存せず、同じ素材集合の二重登録を拒否します。
+- 検証: `Tools/CI/Projectiles` の dotnet チェックで、再利用・評価順・タグ不一致時の通常処理・素材規則を確認しています。
+
+未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、CarryEffect、DeckPassiveEffect、OnLaunch/Tick などのライフサイクル、ScriptableObject定義からの変換。
