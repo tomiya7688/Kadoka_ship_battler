@@ -285,6 +285,9 @@ internal static class ProjectileChecks
         // 発射元に届くと着地します。
         for (var i = 0; i < 10 && arrow.Status == ProjectileFlightStatus.Flying; i++) arrow.Advance(1);
         Check(arrow.Status == ProjectileFlightStatus.Landed && arrow.X == -10f, "Reflected arrow lands at origin");
+        // 発射直後(発射元と同じ位置)の反射でも距離0で壊れず、次の更新で着地します。
+        var atOrigin = new CharacterProjectileModel(2, 3, 50, 3, 10, 2).AddTag("arrow");
+        Check(atOrigin.Reflect(atOrigin.OriginX, atOrigin.OriginY) && atOrigin.Advance(0.1f) == ProjectileFlightStatus.Landed && atOrigin.X == 2f && atOrigin.Y == 3f, "Zero-distance reflection lands without error");
 
         // 反射上限に達した弾は反射されず、通常処理（耐久-1）になります。
         var again = new CharacterProjectileModel(-10, 0, 90, 0, 10, 3).AddTag("arrow");
