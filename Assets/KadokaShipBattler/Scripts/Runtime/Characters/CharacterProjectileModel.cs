@@ -33,9 +33,9 @@ namespace KadokaShipBattler.Characters
     } */
     public sealed class CharacterProjectileModel
     {
-        private readonly float targetX;
-        private readonly float targetY;
-        private readonly ProjectileTrajectory trajectory;
+        private float targetX;
+        private float targetY;
+        private ProjectileTrajectory trajectory;
         // 軌道上の進行度（0〜1）。
         private double progress;
         private readonly float speed;
@@ -46,6 +46,9 @@ namespace KadokaShipBattler.Characters
 
         public float X { get; private set; }
         public float Y { get; private set; }
+        public float OriginX { get; }
+        public float OriginY { get; }
+        public int ReflectCount { get; private set; }
         public int MaxHardness { get; }
         public int RemainingHardness { get; private set; }
         public float FlightSeconds { get; private set; }
@@ -63,6 +66,8 @@ namespace KadokaShipBattler.Characters
             if (!IsFinite(speed) || speed <= 0) throw new ArgumentOutOfRangeException(nameof(speed));
             if (hardness < 1) throw new ArgumentOutOfRangeException(nameof(hardness));
             X = startX;
+            OriginX = startX;
+            OriginY = startY;
             Y = startY;
             this.targetX = targetX;
             this.targetY = targetY;
@@ -110,6 +115,24 @@ namespace KadokaShipBattler.Characters
 
         /* { 処理: 指定タグを持つか調べます。戻り値: 持てばtrueです。 } */
         public bool HasTag(string tag) => tag != null && tags.Contains(tag);
+
+        /* {
+            処理: 飛行中の弾を現在位置から新しい目標へ直線で向け直します。耐久・タグ・飛行秒数は保持し、接触記録は消します。
+            引数: newTargetX、newTargetYは有限の座標。戻り値: 向け直せたらtrue（飛行中でない弾はfalse）。例外: 非有限値を拒否します。
+            補足: 向け直し後は直射になります。反射効果から使います。
+        } */
+        public bool Reflect(float newTargetX, float newTargetY)
+        {
+            if (!IsFinite(newTargetX) || !IsFinite(newTargetY)) throw new ArgumentOutOfRangeException(nameof(newTargetX));
+            if (Status != ProjectileFlightStatus.Flying) return false;
+            targetX = newTargetX;
+            targetY = newTargetY;
+            trajectory = new ProjectileTrajectory(ProjectileTrajectoryKind.Direct, X, Y, newTargetX, newTargetY);
+            progress = 0;
+            contacts.Clear();
+            ReflectCount++;
+            return true;
+        }
 
         /* { 処理: 衝突耐久を1減らし、0以下なら撃墜します。戻り値: この呼び出しで撃墜されたらtrueです。 } */
         public bool Hit()

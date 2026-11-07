@@ -68,6 +68,63 @@ namespace KadokaShipBattler.Ammo
     }
 
     /* {
+        責務: 指定タグを持つ相手を発射元へ撃ち返す効果（反射）。自分は消耗しません。
+        前提: 相手は耐久・タグを保ったまま、発射位置へ直線で向かいます。反射回数が上限に達した弾は反射せず、通常処理へ進みます（往復の無限ループ防止）。
+        フィールド: tag=反射対象のタグ、maxReflections=1つの弾が反射されてよい最大回数。
+    } */
+    public sealed class ReflectTaggedProjectileEffect : IProjectileClashEffect
+    {
+        private readonly string tag;
+        private readonly int maxReflections;
+
+        /* { 処理: 反射対象のタグと反射上限を決めます。例外: 空のタグ、上限1未満を拒否します。 } */
+        public ReflectTaggedProjectileEffect(string tag, int maxReflections = 1)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("Tag is required.", nameof(tag));
+            if (maxReflections < 1) throw new ArgumentOutOfRangeException(nameof(maxReflections));
+            this.tag = tag;
+            this.maxReflections = maxReflections;
+        }
+
+        public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other)
+        {
+            if (other == null || !other.HasTag(tag) || other.ReflectCount >= maxReflections) return false;
+            return other.Reflect(other.OriginX, other.OriginY);
+        }
+    }
+
+    /* { 責務: 円の範囲内の飛行中の弾をまとめて消す純粋な処理（範囲消去）です。 } */
+    public static class ProjectileAreaClear
+    {
+        /* {
+            処理: 中心から半径以内（境界を含む）の飛行中の弾を撃墜します。exceptTagを持つ弾と、exceptで指定した弾自身は消しません。
+            引数: centerX/centerYは有限の中心、radiusは0以上の有限値、projectilesは対象一覧、exceptは消さない弾（null可）、exceptTagは保護するタグ（null可）。
+            戻り値: 撃墜した数。例外: 非有限値・負の半径・nullの一覧を拒否します（一覧内のnull要素は無視）。
+        } */
+        public static int Clear(float centerX, float centerY, float radius, IEnumerable<CharacterProjectileModel> projectiles,
+            CharacterProjectileModel except = null, string exceptTag = null)
+        {
+            if (float.IsNaN(centerX) || float.IsInfinity(centerX) || float.IsNaN(centerY) || float.IsInfinity(centerY))
+                throw new ArgumentOutOfRangeException(nameof(centerX));
+            if (float.IsNaN(radius) || float.IsInfinity(radius) || radius < 0) throw new ArgumentOutOfRangeException(nameof(radius));
+            if (projectiles == null) throw new ArgumentNullException(nameof(projectiles));
+            var radiusSquared = (double)radius * radius;
+            var cleared = 0;
+            foreach (var projectile in projectiles)
+            {
+                if (projectile == null || ReferenceEquals(projectile, except) || projectile.Status != ProjectileFlightStatus.Flying) continue;
+                if (exceptTag != null && projectile.HasTag(exceptTag)) continue;
+                var dx = (double)projectile.X - centerX;
+                var dy = (double)projectile.Y - centerY;
+                if (dx * dx + dy * dy > radiusSquared) continue;
+                projectile.Destroy();
+                cleared++;
+            }
+            return cleared;
+        }
+    }
+
+    /* {
         責務: 複数の素材の組み合わせから結果の弾IDを引く、弾定義の外に置く独立した規則表です。
         前提: 順序なし。同じ素材IDの個数も区別する（多重集合）。同じ素材の組は一度だけ登録できます。
         フィールド: rules=素材集合のキーから結果IDへの表。

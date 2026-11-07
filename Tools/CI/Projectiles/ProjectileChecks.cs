@@ -13,6 +13,7 @@ internal static class ProjectileChecks
         ClashScenarios();
         TrajectoryScenarios();
         EffectScenarios();
+        ReflectAndAreaClearScenarios();
         ScopedScenarios();
         InputScenarios();
         Console.WriteLine($"{checks} projectile checks passed.");
@@ -266,6 +267,59 @@ internal static class ProjectileChecks
         public void OnReleased(string holderId) => Released++;
         public void OnEnterDeck(string deckId) => Entered++;
         public void OnLeaveDeck(string deckId) => Left++;
+    }
+
+    /* { 処理: 反射（発射元へ撃ち返す・上限・非対象）と範囲消去（半径・保護・不正値）を確認します。 } */
+    private static void ReflectAndAreaClearScenarios()
+    {
+        // 反射: 相手を発射元へ向け直し、耐久とタグは保ち、自分は消耗しません。
+        var reflector = Tagged(1, null, new ReflectTaggedProjectileEffect("arrow"));
+        var arrow = new CharacterProjectileModel(-10, 0, 90, 0, 10, 2).AddTag("arrow");
+        arrow.Advance(1);
+        Check(arrow.X > -1f, "Arrow moved before reflection");
+        CharacterProjectileModel.UpdateContact(reflector, arrow, true);
+        Check(arrow.Status == ProjectileFlightStatus.Flying && arrow.RemainingHardness == 2 && arrow.ReflectCount == 1 && reflector.RemainingHardness == 1, "Reflect keeps durability and does not consume reflector");
+        var before = arrow.X;
+        arrow.Advance(0.5f);
+        Check(arrow.X < before, "Reflected arrow flies back toward origin");
+        // 発射元に届くと着地します。
+        for (var i = 0; i < 10 && arrow.Status == ProjectileFlightStatus.Flying; i++) arrow.Advance(1);
+        Check(arrow.Status == ProjectileFlightStatus.Landed && arrow.X == -10f, "Reflected arrow lands at origin");
+
+        // 反射上限に達した弾は反射されず、通常処理（耐久-1）になります。
+        var again = new CharacterProjectileModel(-10, 0, 90, 0, 10, 3).AddTag("arrow");
+        var once = Tagged(1, null, new ReflectTaggedProjectileEffect("arrow", 1));
+        CharacterProjectileModel.UpdateContact(once, again, true);
+        CharacterProjectileModel.UpdateContact(once, again, false);
+        CharacterProjectileModel.UpdateContact(once, again, true);
+        Check(again.ReflectCount == 1 && again.RemainingHardness == 2 && once.Status == ProjectileFlightStatus.Destroyed, "Reflection cap falls back to normal clash");
+
+        // タグが違う弾は反射されません。
+        var other = Tagged(2, "stone");
+        var reflector2 = Tagged(1, null, new ReflectTaggedProjectileEffect("arrow"));
+        CharacterProjectileModel.UpdateContact(reflector2, other, true);
+        Check(other.ReflectCount == 0 && other.RemainingHardness == 1, "Untagged projectile is not reflected");
+        Rejects(() => new ReflectTaggedProjectileEffect(" "), "Blank reflect tag rejected");
+        Rejects(() => new ReflectTaggedProjectileEffect("arrow", 0), "Zero reflection cap rejected");
+        Check(Tagged(1, null).Reflect(1, 1), "Flying projectile can be reflected");
+        var landed = new CharacterProjectileModel(0, 0, 1, 0, 10, 1);
+        landed.Advance(1);
+        Check(!landed.Reflect(5, 5), "Landed projectile cannot be reflected");
+        Rejects(() => Tagged(1, null).Reflect(float.NaN, 0), "Reflect rejects NaN");
+
+        // 範囲消去: 半径内の飛行中の弾だけを消し、境界を含み、保護対象は消しません。
+        var center = Tagged(1, null);
+        var near = new CharacterProjectileModel(3, 4, 99, 4, 1, 5);
+        var far = new CharacterProjectileModel(6, 8, 99, 8, 1, 5);
+        var safe = new CharacterProjectileModel(1, 1, 99, 1, 1, 5).AddTag("safe");
+        var all = new List<CharacterProjectileModel> { center, near, far, safe, null };
+        Check(ProjectileAreaClear.Clear(0, 0, 5, all, center, "safe") == 1 && near.Status == ProjectileFlightStatus.Destroyed, "Area clear removes only in-range unprotected projectile (boundary inclusive)");
+        Check(far.Status == ProjectileFlightStatus.Flying && safe.Status == ProjectileFlightStatus.Flying && center.Status == ProjectileFlightStatus.Flying, "Out of range, protected and excluded projectiles survive");
+        Check(ProjectileAreaClear.Clear(0, 0, 5, all, center, "safe") == 0, "Already destroyed projectile is not counted twice");
+        Check(ProjectileAreaClear.Clear(0, 0, 0, new[] { Tagged(1, null) }) == 1, "Zero radius clears co-located projectile");
+        Rejects(() => ProjectileAreaClear.Clear(0, 0, -1, all), "Negative radius rejected");
+        Rejects(() => ProjectileAreaClear.Clear(float.NaN, 0, 1, all), "NaN center rejected");
+        Rejects(() => ProjectileAreaClear.Clear(0, 0, 1, null), "Null list rejected");
     }
 
     /* { 処理: 所持効果とデッキ効果が独立して有効化・無効化され、通知が1回ずつであることを確認します。 } */
