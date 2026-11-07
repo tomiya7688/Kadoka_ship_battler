@@ -52,14 +52,15 @@ namespace KadokaShipBattler.Characters
             else if (model.Status == ProjectileFlightStatus.Destroyed) Shootdown();
         }
 
-        /* { 処理: 近くを飛ぶ別のキャラクター弾と硬さで衝突させます。 } */
+        /* { 処理: 近くを飛ぶ別のキャラクター弾との重なりをモデルへ渡します。重なり始めの1回だけ耐久が減ります。 } */
         private void ResolveClashes()
         {
             foreach (var other in Flying)
             {
                 if (other == this || other.model == null || other.model.Status != ProjectileFlightStatus.Flying) continue;
                 var offset = new Vector2(other.model.X - model.X, other.model.Y - model.Y);
-                if (offset.sqrMagnitude <= ClashDistance * ClashDistance) CharacterProjectileModel.Clash(model, other.model);
+                // 重なりが外れた場合も渡し、次の接触を数え直せるようにします。
+                CharacterProjectileModel.UpdateContact(model, other.model, offset.sqrMagnitude <= ClashDistance * ClashDistance);
             }
         }
 

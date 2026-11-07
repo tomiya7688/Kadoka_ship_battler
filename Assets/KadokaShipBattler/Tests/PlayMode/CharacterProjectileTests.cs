@@ -28,7 +28,7 @@ namespace KadokaShipBattler.Tests
             var ship = item.AddComponent<ShipController>(); ship.Initialize(side); return ship;
         }
 
-        private CrewMember Passenger(TeamSide side, float hardness)
+        private CrewMember Passenger(TeamSide side, int hardness)
         {
             var definition = ScriptableObject.CreateInstance<CharacterDefinition>(); objects.Add(definition);
             definition.Initialize(new CharacterStats
@@ -69,7 +69,7 @@ namespace KadokaShipBattler.Tests
             var passenger = Passenger(TeamSide.Player, 2);
             // 検証の対象は装填前の硬さなので、定義の値を直接不正にします。
             typeof(CharacterDefinition).GetField("projectileHardness", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .SetValue(passenger.Definition, -1f);
+                .SetValue(passenger.Definition, -1);
             Assert.IsFalse(cannon.TryLoadCharacter(passenger));
             Assert.IsFalse(cannon.IsLoaded);
             Assert.IsTrue(passenger.GetComponent<PlayerCrewController>().enabled);

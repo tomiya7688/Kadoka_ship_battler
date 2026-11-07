@@ -27,9 +27,12 @@ Issue #16。キャラクターを砲台へ装填して敵船へ発射し、飛�
 
 ## 現行コードとの差分
 
-現行の `CharacterProjectileModel.Clash` は「硬い方が無傷で残る／同値なら両方消える」旧プロトタイプです。
+衝突耐久（硬さ）は Issue #38 の確定仕様どおりに実装済みです（最終確認日 2026-11-07）。
 
-Issue #38で次へ置き換えます。
+- `CharacterProjectileModel` は整数の `MaxHardness` / `RemainingHardness` を持ちます。硬さは1以上の整数です。
+- `UpdateContact(left, right, overlapping)` が、重なり始めの1回だけ双方を `Hit()`（-1）します。重なりが外れると次の接触を数え直します。同じ2弾の接触を複数フレームで加算しません。
+- `IProjectileClashEffect.PreClash` が `true` を返すと通常の耐久処理を上書きします（盾割り・すり抜け等）。
+- 通常砲弾1発は `HitByShell()` で耐久を1減らします。
 
 ```text
 left.remainingHardness  -= 1
@@ -37,7 +40,7 @@ right.remainingHardness -= 1
 remainingHardness <= 0 -> Destroyed
 ```
 
-通常砲弾は現在まだ即時着弾処理を含むため、AmmoProjectile化と2砲台化もIssue #38で行います。
+通常砲弾は現在まだ即時着弾処理を含むため、AmmoProjectile化と2砲台（Direct / Arc）化は Issue #38 の残件です。
 
 ## 着地点
 

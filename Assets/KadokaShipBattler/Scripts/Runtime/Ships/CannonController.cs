@@ -45,7 +45,7 @@ namespace KadokaShipBattler.Ships
                 return false;
             // 弾としての硬さが不正な船員は、発射時に失われないよう装填しません。
             var hardness = passenger.Definition.ProjectileHardness;
-            if (float.IsNaN(hardness) || float.IsInfinity(hardness) || hardness < 0) return false;
+            if (hardness < 1) return false;
             // 砲台の中では行動せず、発射まで待ちます。
             loadedCharacter = passenger;
             var controller = passenger.GetComponent<PlayerCrewController>();

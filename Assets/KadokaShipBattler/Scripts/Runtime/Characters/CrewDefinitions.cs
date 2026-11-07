@@ -18,7 +18,7 @@ namespace KadokaShipBattler.Characters
         public NormalAttackMode attackMode;
         public float attackDamage;
         public float attackRange;
-        public float projectileHardness;
+        public int projectileHardness = 1;
         public bool canFly;
         public bool canPhase;
         public CharacterCapability capabilities;
@@ -30,7 +30,7 @@ namespace KadokaShipBattler.Characters
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
                 throw new ArgumentException("Character id and display name are required.");
             if (!Positive(maxHp) || !NonNegative(moveSpeed) || !NonNegative(carryCapacity) || maxCarryCount < 0 ||
-                !NonNegative(attackDamage) || !NonNegative(projectileHardness) || !NonNegative(attackRange) ||
+                !NonNegative(attackDamage) || projectileHardness < 1 || !NonNegative(attackRange) ||
                 !NonNegative(combatSkill) || combatSkill > 10 || !NonNegative(carrySkill) || carrySkill > 10)
                 throw new ArgumentException("Character stats must be finite and within their allowed ranges: " + id);
             if (!Enum.IsDefined(typeof(NormalAttackMode), attackMode) || attackMode != NormalAttackMode.None && attackRange <= 0)
