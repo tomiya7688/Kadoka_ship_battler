@@ -48,6 +48,7 @@ namespace KadokaShipBattler.Tests
         {
             foreach (var member in arena.EnemyCrew) member.GetComponent<VisionSensor>().Scan();
             arena.TickEnemy(TickSeconds);
+            AmmoProjectile.AdvanceAll(TickSeconds);
         }
 
         /* { 処理: 指定スロットの敵船員を配置して向きを固定します。 } */
@@ -64,6 +65,7 @@ namespace KadokaShipBattler.Tests
         public void CalmBattleSharesBombardGoalWithGunnerAndSupplier()
         {
             arena.TickEnemy(TickSeconds);
+            AmmoProjectile.AdvanceAll(TickSeconds);
             Assert.That(arena.EnemyTactics.Goal, Is.EqualTo(EnemyTacticalGoal.Bombard));
             Assert.That(RoleOf(0), Is.EqualTo(EnemyTacticalRole.Gunner));
             Assert.That(RoleOf(2), Is.EqualTo(EnemyTacticalRole.Supplier));
@@ -75,6 +77,7 @@ namespace KadokaShipBattler.Tests
         {
             arena.PlayerShip.ApplyDamage(arena.PlayerShip.MaxHull);
             arena.TickEnemy(TickSeconds);
+            AmmoProjectile.AdvanceAll(TickSeconds);
             Assert.That(arena.EnemyTactics.Goal, Is.EqualTo(EnemyTacticalGoal.BoardEnemy));
             Assert.That(RoleOf(0), Is.EqualTo(EnemyTacticalRole.Boarder));
             Assert.That(RoleOf(4), Is.EqualTo(EnemyTacticalRole.Boarder));
@@ -120,6 +123,7 @@ namespace KadokaShipBattler.Tests
         {
             arena.EnemyShip.ApplyDamage(25);
             arena.TickEnemy(TickSeconds);
+            AmmoProjectile.AdvanceAll(TickSeconds);
             Assert.That(arena.EnemyTactics.Tendency.ShellsPerMinute, Is.GreaterThan(0));
         }
 

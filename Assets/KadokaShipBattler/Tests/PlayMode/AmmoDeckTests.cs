@@ -102,6 +102,9 @@ namespace KadokaShipBattler.Tests
             Assert.That(arena.PlayerCannon.FireAt(arena.PlayerShip), Is.False);
             Assert.That(round.Stage, Is.EqualTo(AmmoRoundStage.Loaded));
             Assert.That(arena.PlayerCannon.FireAt(arena.EnemyShip), Is.True);
+            Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(100), "Launch alone deals no damage");
+            Assert.That(round.Stage, Is.EqualTo(AmmoRoundStage.Loaded), "A round in flight is not yet returned");
+            ShellFlight.Land();
             Assert.That(arena.EnemyShip.CurrentHull, Is.EqualTo(75));
             Assert.That(round.Stage, Is.EqualTo(AmmoRoundStage.Returned));
             Assert.That(arena.PlayerAmmo.Deck.WaitingCount, Is.EqualTo(18));
@@ -231,6 +234,7 @@ namespace KadokaShipBattler.Tests
                 .Single(item => item.OwnerShip == arena.EnemyShip);
             Assert.That(cannon.TryLoadFrom(inventory), Is.True);
             Assert.That(cannon.FireAt(arena.PlayerShip), Is.True);
+            ShellFlight.Land();
             Assert.That(round.Stage, Is.EqualTo(AmmoRoundStage.Returned));
             Assert.That(arena.PlayerAmmo.Deck.WaitingCount, Is.EqualTo(17));
             Assert.That(arena.EnemyAmmo.Deck.WaitingCount, Is.EqualTo(18));

@@ -40,7 +40,7 @@ right.remainingHardness -= 1
 remainingHardness <= 0 -> Destroyed
 ```
 
-通常砲弾は現在まだ即時着弾処理を含むため、AmmoProjectile化と2砲台（Direct / Arc）化は Issue #38 の残件です。
+通常砲弾は AmmoProjectile 化済みです（下記「通常砲弾の飛翔体化」）。Direct / Arc の砲台別選択も実装済みです。
 
 ## 着地点
 
@@ -55,4 +55,23 @@ remainingHardness <= 0 -> Destroyed
 - 砲台ごとに `CannonController.TrajectoryKind` で選びます。
 - 高度による衝突の有無は使いません。2D上で当たり判定が実際に重なった時刻にだけ衝突します。軌道が交差しても通過時刻が違えば衝突しません（`Tools/CI/Projectiles` で検証）。
 
-通常砲弾の AmmoProjectile 化は Issue #38 の残件です。
+通常砲弾（AmmoProjectile）も同じ弾道を使います。
+
+## 通常砲弾の飛翔体化
+
+最終確認日 2026-11-07。Issue #38 の最後の残件で、通常砲弾を即時着弾から飛翔体へ変えました。
+
+| 要素 | 役割 |
+| --- | --- |
+| `AmmoShotModel`（純C#） | 砲弾1発の飛行・結末。飛行は `CharacterProjectileModel`（衝突耐久 `UpdateContact`/`Hit` と `ProjectileTrajectory`）を使う。 |
+| `ProjectileClashField`（純C#） | 飛行中の通常砲弾とキャラクター弾を登録し、敵対する弾同士の重なりを `UpdateContact` へ渡す。味方同士は衝突しない。 |
+| `AmmoProjectile`（Unity） | 砲弾の座標反映・後始末。`AdvanceAll` で複数弾をフレームを待たず進められる。 |
+| `CannonState.Detach` | 発射条件を満たした装填弾を砲台から取り外す。ダメージと山札返却は着弾側が行う。 |
+| `IHardAmmo` | 弾の硬さ。`AmmoStats` / `AmmoDefinition` / `AmmoDeckRound` が実装し、未実装の弾は1。 |
+
+- 発射時にダメージは与えません。着地した時にだけ `ShipBattleState.ApplyHullDamage` を呼びます。
+- 迎撃（撃墜）・取消（場面の破棄）ではダメージなしで山札へ返します。結末は1回だけ確定し、山札へも1回だけ返します。
+- 硬さは四捨五入した整数（1未満・非有限は1、上限1000）で、通常衝突1回につき1減ります。硬さ3の砲弾は硬さ1の砲弾を迎撃して残り2で着弾します。
+- 弾道は `CannonController.TrajectoryKind` に従い、キャラクター弾と同じ衝突場に参加します（軌道の種類は問わず、2D上で重なった時だけ衝突）。
+- 検証: `Tools/CI/Projectiles`（純C#）と PlayMode `AmmoProjectileTests`。`CannonState.FireAt`（即時着弾）は純C#モデルのCI用に残してあり、ゲーム本体の `CannonController.FireAt` は使いません。
+- 未対応: `ProjectileRuntime` への完全統合、`PreClash` の通常砲弾への特殊効果の差し込み、盾・反射などのEffect（Issue #41）。

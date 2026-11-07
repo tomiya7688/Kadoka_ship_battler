@@ -143,7 +143,7 @@ namespace KadokaShipBattler.Tests
             var player = Ship(TeamSide.Player, 0);
             var enemy = Ship(TeamSide.Enemy, 6);
             var hard = Passenger(TeamSide.Player, 5);
-            var soft = Passenger(TeamSide.Player, 1);
+            var soft = Passenger(TeamSide.Enemy, 1);
             var first = CharacterProjectile.Launch(hard, Vector2.zero, enemy);
             var second = CharacterProjectile.Launch(soft, Vector2.zero, enemy);
             Assert.IsNotNull(first);

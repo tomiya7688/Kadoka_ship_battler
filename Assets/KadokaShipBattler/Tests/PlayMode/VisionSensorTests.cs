@@ -325,6 +325,7 @@ namespace KadokaShipBattler.Tests
             for (var step = 0; step < 100 && arena.PlayerShip.CurrentHull == 100; step++)
             {
                 arena.TickEnemy(0.1f);
+                AmmoProjectile.AdvanceAll(0.1f);
                 carried |= inventory.HasAmmo;
             }
             Assert.That(carried, Is.True);
