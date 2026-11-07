@@ -14,6 +14,7 @@
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/TeamSide.cs" Link="TeamSide.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Core/CrewControlState.cs" Link="CrewControlState.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CrewDefinitions.cs" Link="CrewDefinitions.cs" />
+    <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CrewLifecycleModel.cs" Link="CrewLifecycleModel.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Characters/CharacterCapability.cs" Link="CharacterCapability.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/Ammo/AmmoDeckModel.cs" Link="AmmoDeckModel.cs" />
     <Compile Include="../../Assets/KadokaShipBattler/Scripts/Runtime/AI/VisionModel.cs" Link="VisionModel.cs" />

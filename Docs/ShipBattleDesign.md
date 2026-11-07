@@ -255,3 +255,15 @@ Active
 - 船の種類・パーツにより性能や見た目が変わる。
 
 Kadoka側では5対5、操作切替、重量制運搬、前方扇状視界、学習するUtility AIを追加する。
+
+## 船員の戦闘不能・復帰の実装状況（Issue #40 第1段階、最終確認日 2026-11-07）
+
+純C#の状態機械 `CrewLifecycleModel`（`Assets/KadokaShipBattler/Scripts/Runtime/Characters/CrewLifecycleModel.cs`）を実装済みです。
+
+- 状態は Active → Downed → Respawning → Active。通常攻撃・敵船内での敗北・キャラクター弾の撃墜のどれからも同じ `Down()` を呼びます。
+- 倒れた時の後始末（制御停止・予約解放・所持弾処理・飛行終了・操作対象の切替）は `onDowned` として1回だけ実行します。復帰時の配置とHP全回復は `onRespawned` で1回だけ実行します。
+- 復帰時間は引数（データ由来）で渡します。`DisableRespawn()` 以後は復帰しません（コア破壊後）。
+- `IsTargetable` は Active の間だけ true です。AI・操作切替・タスク予約は、これを見て復帰待ちの船員を対象から外します。
+- 検証: `Tools/CI` の gameplay チェック（327件）。
+
+未実装: Unity側（`CrewMember` / `PlayerCrewController` / `CharacterProjectile.Shootdown` からの接続、スポーン位置の配置、AI・操作切替・予約が `IsTargetable` を見る変更）。PlayMode の確認が必要です。
