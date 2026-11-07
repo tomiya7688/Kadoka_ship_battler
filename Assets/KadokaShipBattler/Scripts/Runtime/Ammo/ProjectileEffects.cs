@@ -69,7 +69,7 @@ namespace KadokaShipBattler.Ammo
 
     /* {
         責務: 指定タグを持つ相手を発射元へ撃ち返す効果（反射）。自分は消耗しません。
-        前提: 相手は耐久・タグを保ったまま、発射位置へ直線で向かいます。反射回数が上限に達した弾は反射せず、通常処理へ進みます（往復の無限ループ防止）。
+        前提: 相手は耐久・タグを保ったまま、直近の撃ち出し地点（初回は発射位置、再反射では前回反射された位置）へ直線で向かいます。反射回数が上限に達した弾は反射せず、通常処理へ進みます（往復の無限ループ防止）。
         フィールド: tag=反射対象のタグ、maxReflections=1つの弾が反射されてよい最大回数。
     } */
     public sealed class ReflectTaggedProjectileEffect : IProjectileClashEffect
@@ -89,7 +89,7 @@ namespace KadokaShipBattler.Ammo
         public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other)
         {
             if (other == null || !other.HasTag(tag) || other.ReflectCount >= maxReflections) return false;
-            return other.Reflect(other.OriginX, other.OriginY);
+            return other.Reflect(other.LastLaunchX, other.LastLaunchY);
         }
     }
 

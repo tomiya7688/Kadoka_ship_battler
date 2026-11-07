@@ -342,7 +342,7 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 
 ### 反射・範囲消去（Issue #41 第3段階、最終確認日 2026-11-08）
 
-- `ReflectTaggedProjectileEffect(tag, maxReflections=1)`: 指定タグの相手を発射元へ直線で撃ち返します。相手の耐久・タグ・飛行秒数は保ち、自分は消耗しません。1つの弾が反射される回数に上限があり、上限に達した弾は通常の衝突処理に進むため、往復し続けることはありません。実体は `CharacterProjectileModel.Reflect(x, y)`（飛行中のみ成功、接触記録を消して直射に切り替え）と `OriginX/OriginY/ReflectCount` です。
+- `ReflectTaggedProjectileEffect(tag, maxReflections=1)`: 指定タグの相手を直近の撃ち出し地点（初回は発射元、再反射では前回反射された位置）へ直線で撃ち返します。相手の耐久・タグ・飛行秒数は保ち、自分は消耗しません。1つの弾が反射される回数に上限があり、上限に達した弾は通常の衝突処理に進むため、往復し続けることはありません。実体は `CharacterProjectileModel.Reflect(x, y)`（飛行中のみ成功、接触記録を消して直射に切り替え）と `OriginX/OriginY/LastLaunchX/LastLaunchY/ReflectCount` です。
 - `ProjectileAreaClear.Clear(x, y, radius, projectiles, except, exceptTag)`: 中心から半径以内（境界を含む）の飛行中の弾を撃墜し、撃墜数を返します。発動した弾自身（`except`）と保護タグの弾は消しません。
 - 検証: `Tools/CI/Projectiles` に反射（耐久保持・発射元への着地・上限・タグ不一致・不正値）と範囲消去（境界・保護・二重計上なし・不正値）を追加しました。
 

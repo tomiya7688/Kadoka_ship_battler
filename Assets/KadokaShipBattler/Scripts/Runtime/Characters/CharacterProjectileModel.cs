@@ -48,6 +48,9 @@ namespace KadokaShipBattler.Characters
         public float Y { get; private set; }
         public float OriginX { get; }
         public float OriginY { get; }
+        // 直近の「撃ち出し地点」。最初は発射元、反射のたびに反射した位置へ更新します。
+        public float LastLaunchX { get; private set; }
+        public float LastLaunchY { get; private set; }
         public int ReflectCount { get; private set; }
         public int MaxHardness { get; }
         public int RemainingHardness { get; private set; }
@@ -67,7 +70,9 @@ namespace KadokaShipBattler.Characters
             if (hardness < 1) throw new ArgumentOutOfRangeException(nameof(hardness));
             X = startX;
             OriginX = startX;
+            LastLaunchX = startX;
             OriginY = startY;
+            LastLaunchY = startY;
             Y = startY;
             this.targetX = targetX;
             this.targetY = targetY;
@@ -131,6 +136,9 @@ namespace KadokaShipBattler.Characters
             progress = 0;
             contacts.Clear();
             ReflectCount++;
+            // 次に反射されたときは、今回反射された位置（撃ち返してきた側）へ戻します。
+            LastLaunchX = X;
+            LastLaunchY = Y;
             return true;
         }
 

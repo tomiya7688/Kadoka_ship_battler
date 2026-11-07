@@ -288,6 +288,19 @@ internal static class ProjectileChecks
         // 発射直後(発射元と同じ位置)の反射でも距離0で壊れず、次の更新で着地します。
         var atOrigin = new CharacterProjectileModel(2, 3, 50, 3, 10, 2).AddTag("arrow");
         Check(atOrigin.Reflect(atOrigin.OriginX, atOrigin.OriginY) && atOrigin.Advance(0.1f) == ProjectileFlightStatus.Landed && atOrigin.X == 2f && atOrigin.Y == 3f, "Zero-distance reflection lands without error");
+        // 再反射(上限2)では、発射元ではなく前回反射された位置へ撃ち返します。
+        var ping = new CharacterProjectileModel(-10, 0, 90, 0, 10, 5).AddTag("arrow");
+        var wall = Tagged(1, null, new ReflectTaggedProjectileEffect("arrow", 2));
+        ping.Advance(1);
+        var firstHitX = ping.X;
+        CharacterProjectileModel.UpdateContact(wall, ping, true);
+        CharacterProjectileModel.UpdateContact(wall, ping, false);
+        ping.Advance(0.2f);
+        CharacterProjectileModel.UpdateContact(wall, ping, true);
+        Check(ping.ReflectCount == 2 && ping.LastLaunchX > -10f, "Second reflection records new launch point");
+        var xAfterSecond = ping.X;
+        ping.Advance(0.1f);
+        Check(ping.X > xAfterSecond && ping.X <= firstHitX, "Second reflection heads back toward previous reflection point, not origin");
 
         // 反射上限に達した弾は反射されず、通常処理（耐久-1）になります。
         var again = new CharacterProjectileModel(-10, 0, 90, 0, 10, 3).AddTag("arrow");
