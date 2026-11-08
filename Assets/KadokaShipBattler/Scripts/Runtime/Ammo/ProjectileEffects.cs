@@ -93,6 +93,82 @@ namespace KadokaShipBattler.Ammo
         }
     }
 
+    /* { 責務: 効果が新しい弾を生み出すときの要求です。Unity側が受け取って実体を作ります。 } */
+    public readonly struct ProjectileSpawnRequest
+    {
+        public float StartX { get; }
+        public float StartY { get; }
+        public float TargetX { get; }
+        public float TargetY { get; }
+        public float Speed { get; }
+        public int Hardness { get; }
+
+        /* { 処理: 生成要求を作ります。例外: 非有限値、速度0以下、耐久1未満を拒否します。 } */
+        public ProjectileSpawnRequest(float startX, float startY, float targetX, float targetY, float speed, int hardness)
+        {
+            if (!float.IsFinite(startX) || !float.IsFinite(startY) || !float.IsFinite(targetX) || !float.IsFinite(targetY))
+                throw new ArgumentOutOfRangeException(nameof(startX));
+            if (!float.IsFinite(speed) || speed <= 0) throw new ArgumentOutOfRangeException(nameof(speed));
+            if (hardness < 1) throw new ArgumentOutOfRangeException(nameof(hardness));
+            StartX = startX;
+            StartY = startY;
+            TargetX = targetX;
+            TargetY = targetY;
+            Speed = speed;
+            Hardness = hardness;
+        }
+    }
+
+    /* { 責務: 効果が出した生成要求を溜め、Unity側が1フレームに1度まとめて受け取るための待ち行列です。 } */
+    public sealed class ProjectileSpawnQueue
+    {
+        private readonly List<ProjectileSpawnRequest> pending = new();
+
+        public int Count => pending.Count;
+
+        /* { 処理: 要求を末尾に追加します。 } */
+        public void Enqueue(ProjectileSpawnRequest request) => pending.Add(request);
+
+        /* { 処理: 溜まった要求を登録順に取り出して空にします。戻り値: 取り出した要求の一覧（なければ空）。 } */
+        public IReadOnlyList<ProjectileSpawnRequest> Drain()
+        {
+            var drained = pending.ToArray();
+            pending.Clear();
+            return drained;
+        }
+    }
+
+    /* {
+        責務: 指定タグの相手に当たったとき、相手を別の弾に変える効果（変化）。自分は消耗しません。
+        前提: 相手は撃墜され、factoryが返す生成要求が待ち行列に積まれます。factoryがnullを返したら何も変えず通常処理へ進みます。
+        フィールド: tag=変化させる相手のタグ、queue=生成要求の積み先、factory=相手から新しい弾の要求を作る関数。
+    } */
+    public sealed class TransformOnClashProjectileEffect : IProjectileClashEffect
+    {
+        private readonly string tag;
+        private readonly ProjectileSpawnQueue queue;
+        private readonly Func<CharacterProjectileModel, ProjectileSpawnRequest?> factory;
+
+        /* { 処理: 変化の条件と積み先を決めます。例外: 空のタグ、nullの積み先・関数を拒否します。 } */
+        public TransformOnClashProjectileEffect(string tag, ProjectileSpawnQueue queue, Func<CharacterProjectileModel, ProjectileSpawnRequest?> factory)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("Tag is required.", nameof(tag));
+            this.tag = tag;
+            this.queue = queue ?? throw new ArgumentNullException(nameof(queue));
+            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        }
+
+        public bool PreClash(CharacterProjectileModel self, CharacterProjectileModel other)
+        {
+            if (other == null || !other.HasTag(tag) || other.Status != ProjectileFlightStatus.Flying) return false;
+            var request = factory(other);
+            if (request == null) return false;
+            queue.Enqueue(request.Value);
+            other.Destroy();
+            return true;
+        }
+    }
+
     /* { 責務: 円の範囲内の飛行中の弾をまとめて消す純粋な処理（範囲消去）です。 } */
     public static class ProjectileAreaClear
     {

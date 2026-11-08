@@ -323,6 +323,26 @@ internal static class ProjectileChecks
         Check(!landed.Reflect(5, 5), "Landed projectile cannot be reflected");
         Rejects(() => Tagged(1, null).Reflect(float.NaN, 0), "Reflect rejects NaN");
 
+        // 変化: 相手を撃墜して生成要求を積み、自分は消耗しません。factoryがnullなら通常処理です。
+        var queue = new ProjectileSpawnQueue();
+        var morph = Tagged(1, null, new TransformOnClashProjectileEffect("bomb", queue, p => new ProjectileSpawnRequest(p.X, p.Y, 0, 0, 5, 2)));
+        var bomb = new CharacterProjectileModel(-5, 0, 99, 0, 10, 3).AddTag("bomb");
+        CharacterProjectileModel.UpdateContact(morph, bomb, true);
+        var spawned = queue.Drain();
+        Check(bomb.Status == ProjectileFlightStatus.Destroyed && morph.RemainingHardness == 1 && spawned.Count == 1 && spawned[0].Hardness == 2 && spawned[0].StartX == -5f && queue.Count == 0, "Transform destroys target and queues one spawn");
+        var skip = Tagged(1, null, new TransformOnClashProjectileEffect("bomb", queue, p => null));
+        var bomb2 = new CharacterProjectileModel(-5, 0, 99, 0, 10, 1).AddTag("bomb");
+        CharacterProjectileModel.UpdateContact(skip, bomb2, true);
+        Check(queue.Count == 0 && bomb2.Status == ProjectileFlightStatus.Destroyed && skip.Status == ProjectileFlightStatus.Destroyed, "Null factory falls back to normal clash");
+        var plainTarget = Tagged(2, "stone");
+        CharacterProjectileModel.UpdateContact(morph, plainTarget, true);
+        Check(queue.Count == 0 && plainTarget.RemainingHardness == 1, "Untagged target is not transformed");
+        Rejects(() => new TransformOnClashProjectileEffect("", queue, p => null), "Blank transform tag rejected");
+        Rejects(() => new ProjectileSpawnRequest(0, 0, 1, 1, 0, 1), "Zero spawn speed rejected");
+        Rejects(() => new ProjectileSpawnRequest(0, 0, 1, 1, 1, 0), "Zero spawn hardness rejected");
+        Rejects(() => new ProjectileSpawnRequest(float.NaN, 0, 1, 1, 1, 1), "NaN spawn rejected");
+        Check(queue.Drain().Count == 0, "Drain on empty queue is empty");
+
         // 範囲消去: 半径内の飛行中の弾だけを消し、境界を含み、保護対象は消しません。
         var center = Tagged(1, null);
         var near = new CharacterProjectileModel(3, 4, 99, 4, 1, 5);
