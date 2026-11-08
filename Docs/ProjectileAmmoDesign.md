@@ -338,4 +338,18 @@ AIはEffectクラスの型名を直接条件分岐に使わない。
 
 `ScopedEffects.cs` に `ICarryEffect`（所持中だけ）と `IDeckPassiveEffect`（デッキにある間だけ）を追加しました。両者と飛翔効果は別のインターフェースで、互いに依存しません。有効化・無効化は型に依存しない `ScopedEffectLedger<TEffect>` が所有者ID単位で管理し、通知は1回ずつです。所持用とデッキ用で別の台帳を持つため、同じ効果オブジェクトを両方に使っても一方の解除が他方に影響しません。
 
-未実装: Reflect / AreaClear / TransformOnClash / SummonOnHit、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。
+未実装: SummonOnHit、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。
+
+### 反射・範囲消去（Issue #41 第3段階、最終確認日 2026-11-08）
+
+- `ReflectTaggedProjectileEffect(tag, maxReflections=1)`: 指定タグの相手を直近の撃ち出し地点（初回は発射元、再反射では前回反射された位置）へ直線で撃ち返します。相手の耐久・タグ・飛行秒数は保ち、自分は消耗しません。1つの弾が反射される回数に上限があり、上限に達した弾は通常の衝突処理に進むため、往復し続けることはありません。実体は `CharacterProjectileModel.Reflect(x, y)`（飛行中のみ成功、接触記録を消して直射に切り替え）と `OriginX/OriginY/LastLaunchX/LastLaunchY/ReflectCount` です。
+- `ProjectileAreaClear.Clear(x, y, radius, projectiles, except, exceptTag)`: 中心から半径以内（境界を含む）の飛行中の弾を撃墜し、撃墜数を返します。発動した弾自身（`except`）と保護タグの弾は消しません。
+- 検証: `Tools/CI/Projectiles` に反射（耐久保持・発射元への着地・上限・タグ不一致・不正値）と範囲消去（境界・保護・二重計上なし・不正値）を追加しました。
+
+未実装: SummonOnHit、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。
+
+### 変化（Issue #41 第3段階の続き、最終確認日 2026-11-08）
+
+`TransformOnClashProjectileEffect(tag, queue, factory)` は、指定タグの相手に当たると相手を撃墜し、`factory` が作った `ProjectileSpawnRequest`（発射位置・目標・速度・耐久）を `ProjectileSpawnQueue` に積みます。自分は消耗しません。`factory` が null を返した場合は何も変えず通常の衝突処理に進みます。Unity 側は `Drain()` で要求をまとめて受け取り、実体の弾を作ります（この接続は PlayMode が必要なため未実装）。
+
+未実装: SummonOnHit（船・船員への命中通知が必要）、OnLaunch/Tick などのライフサイクル、ScriptableObject変換。
