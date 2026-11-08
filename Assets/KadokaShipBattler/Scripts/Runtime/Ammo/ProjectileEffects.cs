@@ -132,7 +132,7 @@ namespace KadokaShipBattler.Ammo
         /* { 処理: 溜まった要求を登録順に取り出して空にします。戻り値: 取り出した要求の一覧（なければ空）。 } */
         public IReadOnlyList<ProjectileSpawnRequest> Drain()
         {
-            var drained = pending.ToArray();
+            var drained = Array.AsReadOnly(pending.ToArray());
             pending.Clear();
             return drained;
         }
